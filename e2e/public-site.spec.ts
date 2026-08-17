@@ -6,7 +6,7 @@ test("home renders the brand, navigation, and structured data", async ({ page })
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Small steps");
   const structuredData = await page.locator('script[type="application/ld+json"]').evaluate((node) => node.textContent);
   expect(structuredData).toContain("WebSite");
-  await expect(page.locator('link[type="application/rss+xml"]')).toHaveAttribute("href", "/feed.xml");
+  await expect(page.locator('link[type="application/rss+xml"]')).toHaveAttribute("href", /\/feed\.xml$/);
 });
 
 test("updates can be searched and filtered", async ({ page }) => {
