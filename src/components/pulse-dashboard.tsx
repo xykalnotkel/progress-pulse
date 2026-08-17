@@ -165,7 +165,6 @@ export default function PulseDashboard({ apps, updates, isDemo = false }: Props)
           <button className="theme-toggle" type="button" onClick={() => setDark((value) => !value)} aria-label="Toggle theme">
             <Sun size={15} /><span className={dark ? "toggle-knob" : "toggle-knob toggle-knob-light"}><Moon size={13} /></span>
           </button>
-          <a href="/login" className="admin-link">Admin <ArrowUpRight size={14} /></a>
         </div>
       </nav>
 
@@ -176,8 +175,8 @@ export default function PulseDashboard({ apps, updates, isDemo = false }: Props)
           <p className="hero-description">A living record of what I’m making — the ideas, iterations, and launches along the way.</p>
           <div className="hero-buttons"><a href="#updates" className="button button-primary">See latest progress <ArrowRight size={17} /></a><a href="#apps" className="button button-ghost">Explore apps <ChevronDown size={16} /></a></div>
         </div>
-        <div className="hero-sculpture" aria-hidden="true">
-          <div className="metal-stage" /><div className="metal-ring ring-back" /><div className="metal-ring ring-front" /><div className="liquid-orb"><div className="orb-shine" /></div><div className="metal-float float-one" /><div className="metal-float float-two" />
+        <div className="hero-sculpture">
+          <img className="hero-render" src="/images/pulse-hero-3d.webp" alt="Ilustrasi abstrak 3D Pulse" fetchPriority="high" />
           <div className="sculpture-label"><span>01</span><i />IN PROGRESS</div>
         </div>
       </section>
