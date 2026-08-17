@@ -1,0 +1,22 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { requestHasAdminAccess } from "@/lib/request-auth";
+
+const payload = z.object({
+  appId: z.string().uuid(), title: z.string().trim().min(1).max(160), description: z.string().trim().max(5000).optional().nullable(),
+  status: z.enum(["planning", "building", "testing", "shipped"]), version: z.string().trim().max(40).optional().nullable(),
+  media: z.array(z.string().url()).max(12).default([]), isPublished: z.boolean().default(true),
+});
+
+export async function POST(request: Request) {
+  if (!await requestHasAdminAccess(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const parsed = payload.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Data update tidak valid.", details: parsed.error.flatten() }, { status: 400 });
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
+  const input = parsed.data;
+  const { data, error } = await supabase.from("progress_updates").insert({ app_id: input.appId, title: input.title, description: input.description ?? null, status: input.status, version: input.version ?? null, media: input.media, is_published: input.isPublished }).select().single();
+  if (error) return NextResponse.json({ error: "Gagal menyimpan update." }, { status: 400 });
+  return NextResponse.json(data, { status: 201 });
+}
