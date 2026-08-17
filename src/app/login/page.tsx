@@ -15,5 +15,5 @@ export default function LoginPage() {
     if (error) setMessage(error.message);
   }
 
-  return <main className="login-page"><div className="login-glow" /><Link href="/" className="login-back"><ArrowLeft size={15} /> Kembali ke Pulse</Link><section className="login-card"><div className="login-logo">p<span>.</span></div><p className="eyebrow">OWNER ACCESS</p><h1>Welcome back.</h1><p>Sign in with the Google account configured as the owner of this progress log.</p><button onClick={signIn}><Globe size={18} /> Continue with Google</button>{message && <small>{message}</small>}<div className="login-note"><ShieldCheck size={15} /> Hanya email admin yang disetujui yang dapat mengelola konten.</div></section></main>;
+  return <main className="login-page"><div className="login-glow" /><Link href="/" className="login-back"><ArrowLeft size={15} /> Kembali ke XySpace</Link><section className="login-card"><div className="login-logo">p<span>.</span></div><p className="eyebrow">OWNER ACCESS</p><h1>Welcome back.</h1><p>Sign in with the Google account configured as the owner of this progress log.</p><button onClick={signIn}><Globe size={18} /> Continue with Google</button>{message && <small>{message}</small>}<div className="login-note"><ShieldCheck size={15} /> Hanya email admin yang disetujui yang dapat mengelola konten.</div></section></main>;
 }

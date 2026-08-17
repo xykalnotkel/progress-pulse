@@ -1,4 +1,4 @@
-# Pulse — Progress Log
+# XySpace Blog — Progress Log
 
 A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **Cloudinary**, and an optional AI publishing API.
 
