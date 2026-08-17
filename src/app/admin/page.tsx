@@ -237,11 +237,15 @@ export default function AdminPage() {
     const setBusy = field === "avatar" ? setAvatarBusy : setBannerBusy;
     setBusy(true);
     try {
-      const signResponse = await fetch("/api/media/signature", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const signResponse = await fetch("/api/media/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ purpose: `profile-${field}` }),
+      });
       const signed = await signResponse.json();
       if (!signResponse.ok) throw new Error(signed.error ?? "Tidak bisa menyiapkan upload.");
       const form = new FormData();
-      form.append("file", file); form.append("api_key", signed.apiKey); form.append("timestamp", String(signed.timestamp)); form.append("signature", signed.signature); form.append("folder", `progress-pulse/profile-${field}`);
+      form.append("file", file); form.append("api_key", signed.apiKey); form.append("timestamp", String(signed.timestamp)); form.append("signature", signed.signature); form.append("folder", signed.folder);
       const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/auto/upload`, { method: "POST", body: form });
       const uploaded = await response.json();
       if (!response.ok) throw new Error(uploaded.error?.message ?? "Upload gagal.");
