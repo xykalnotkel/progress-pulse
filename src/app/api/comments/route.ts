@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
 import { revalidatePublicContent } from "@/lib/revalidation";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { verifyCommentProof } from "@/lib/comment-proof";
 
 const payload = z.object({
   updateId: z.string().uuid(),
@@ -13,6 +14,7 @@ const payload = z.object({
   body: z.string().trim().min(2).max(1000),
   visitorId: z.string().uuid(),
   turnstileToken: z.string().max(2048).optional(),
+  turnstileProof: z.string().max(1000).optional(),
   website: z.literal("").optional(),
 });
 
@@ -34,9 +36,10 @@ export async function POST(request: Request) {
 
   const action = parsed.data.parentId ? "comment_reply" : "comment";
   const hasBearer = request.headers.get("authorization")?.startsWith("Bearer ") ?? false;
+  const proofValid = verifyCommentProof(request, parsed.data.turnstileProof, action);
   const limiterPromise = consumeApiRateLimit(supabase, request, { action: "comment", limit: 5, windowSeconds: 600 });
   const identityPromise = requestHasAdminAccess(request);
-  const humanPromise = hasBearer ? Promise.resolve<boolean | null>(null) : verifyTurnstile(request, parsed.data.turnstileToken, action);
+  const humanPromise = proofValid || hasBearer ? Promise.resolve<boolean | null>(proofValid ? true : null) : verifyTurnstile(request, parsed.data.turnstileToken, action);
   const updatePromise = supabase.from("progress_updates").select("id").eq("id", parsed.data.updateId).or(`is_published.eq.true,scheduled_for.lte.${new Date().toISOString()}`).maybeSingle();
   const parentPromise = parsed.data.parentId
     ? supabase.from("comments").select("id,update_id,parent_id").eq("id", parsed.data.parentId).eq("status", "approved").maybeSingle()

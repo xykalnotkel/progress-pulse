@@ -23,6 +23,8 @@ export default function UpdateDetailInteractions({ updateId, initialComments, in
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [turnstile, setTurnstile] = useState<string | null>(null);
+  const [humanProof, setHumanProof] = useState<string | null>(null);
+  const [humanState, setHumanState] = useState<"idle" | "checking" | "ready" | "error">("idle");
   const [turnstileVersion, setTurnstileVersion] = useState(0);
   const [sending, setSending] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -44,7 +46,13 @@ export default function UpdateDetailInteractions({ updateId, initialComments, in
     })();
   }, [isDemo]);
 
-  function resetHumanCheck() { setTurnstile(null); setTurnstileVersion((value) => value + 1); }
+  async function prepareHumanProof(value: string | null) {
+    setTurnstile(value); setHumanProof(null);
+    if (!value) return setHumanState("error");
+    setHumanState("checking");
+    try { const response = await fetch("/api/turnstile/comment-proof", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: value, action: "comment" }) }); const data = await response.json(); if (!response.ok || !data.proof) throw new Error(); setHumanProof(data.proof); setHumanState("ready"); } catch { setHumanState("error"); }
+  }
+  function resetHumanCheck() { setTurnstile(null); setHumanProof(null); setHumanState("idle"); setTurnstileVersion((value) => value + 1); }
 
   async function like() {
     if (liked) return;
@@ -59,7 +67,7 @@ export default function UpdateDetailInteractions({ updateId, initialComments, in
     event.preventDefault();
     const author = identity?.name ?? name.trim();
     const message = body.trim();
-    if (author.length < 2 || message.length < 2 || (!identity && !isDemo && !turnstile)) return;
+    if (author.length < 2 || message.length < 2 || (!identity && !isDemo && !humanProof)) return;
     const localId = `local-${Date.now()}`;
     const local: Comment = { id: localId, update_id: updateId, parent_id: null, author_name: author, author_badge: identity?.badge ?? null, author_avatar: identity?.avatar ?? null, body: message, created_at: new Date().toISOString(), replies: [], reactions: {} };
     setComments((items) => [...items, local]);
@@ -68,7 +76,7 @@ export default function UpdateDetailInteractions({ updateId, initialComments, in
       if (!isDemo) {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (token) headers.Authorization = `Bearer ${token}`;
-        const response = await fetch("/api/comments", { method: "POST", headers, body: JSON.stringify({ updateId, authorName: identity ? "" : author, body: message, visitorId: getVisitorId(), turnstileToken: turnstile ?? undefined, website: "" }) });
+        const response = await fetch("/api/comments", { method: "POST", headers, body: JSON.stringify({ updateId, authorName: identity ? "" : author, body: message, visitorId: getVisitorId(), turnstileToken: turnstile ?? undefined, turnstileProof: humanProof ?? undefined, website: "" }) });
         if (!response.ok) throw new Error();
       }
       setNotice("Komentar berhasil dikirim."); resetHumanCheck();
@@ -98,9 +106,10 @@ export default function UpdateDetailInteractions({ updateId, initialComments, in
           <div className="comment-sheet-handle"/><div className="comment-sheet-head"><div><small>KOMENTAR</small><h4>Tulis komentar</h4></div><button type="button" onClick={() => setComposerOpen(false)} disabled={sending}>Tutup</button></div>
           {identity ? <div className="comment-form-as">{identity.avatar ? <Image src={identity.avatar} alt="" width={30} height={30} className="comment-form-avatar"/> : null}<div className="comment-form-name"><strong>{identity.name}</strong><RoleBadge badge={identity.badge}/></div></div> : <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required autoFocus/>}
           <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder="Tambahkan komentar..." required autoFocus={Boolean(identity)}/>
-          {!identity && !isDemo ? <HumanCheck key={turnstileVersion} action="comment" onToken={setTurnstile}/> : null}
+          {!identity && !isDemo ? <HumanCheck key={turnstileVersion} action="comment" onToken={prepareHumanProof}/> : null}
+          {!identity && !isDemo && humanState !== "idle" ? <p className={`comment-sheet-state ${humanState === "ready" ? "success" : humanState === "error" ? "error" : "loading"}`}>{humanState === "ready" ? "Siap dikirim." : humanState === "error" ? "Verifikasi gagal, coba buka ulang." : "Menyiapkan verifikasi..."}</p> : null}
           {notice ? <p className={`comment-sheet-state ${notice.includes("gagal") ? "error" : notice.includes("berhasil") ? "success" : "loading"}`}>{notice}</p> : null}
-          <button type="submit" className="detail-submit" disabled={sending || (!identity && !isDemo && !turnstile)}><Send size={15}/>{sending ? "Mengirim..." : "Kirim komentar"}</button>
+          <button type="submit" className="detail-submit" disabled={sending || (!identity && !isDemo && !humanProof)}><Send size={15}/>{sending ? "Mengirim..." : "Kirim komentar"}</button>
         </form>
       </div> : null}
     </div>
@@ -108,8 +117,9 @@ export default function UpdateDetailInteractions({ updateId, initialComments, in
 }
 
 function Thread({ comment, updateId, token, identity, isDemo, onReply }: { comment: Comment; updateId: string; token: string | null; identity: Identity | null; isDemo: boolean; onReply: (parentId: string, reply: Comment) => void }) {
-  const [open, setOpen] = useState(false); const [name, setName] = useState(""); const [body, setBody] = useState(""); const [human, setHuman] = useState<string | null>(null); const [version, setVersion] = useState(0); const [reactions, setReactions] = useState(comment.reactions ?? {});
+  const [open, setOpen] = useState(false); const [name, setName] = useState(""); const [body, setBody] = useState(""); const [human, setHuman] = useState<string | null>(null); const [proof, setProof] = useState<string | null>(null); const [version, setVersion] = useState(0); const [reactions, setReactions] = useState(comment.reactions ?? {});
+  async function prepareReplyProof(value: string | null) { setHuman(value); setProof(null); if (!value) return; const response = await fetch("/api/turnstile/comment-proof", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ token:value, action:"comment_reply" }) }); if (response.ok) { const data = await response.json(); setProof(data.proof ?? null); } }
   async function react(reaction: CommentReaction) { if (!isDemo) { const response = await fetch("/api/comment-reactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ commentId: comment.id, reaction, visitorId: getVisitorId() }) }); if (!response.ok) return; } setReactions((value) => ({ ...value, [reaction]: (value[reaction] ?? 0) + 1 })); }
-  async function reply(event: React.FormEvent) { event.preventDefault(); const author = identity?.name ?? name.trim(); if (author.length < 2 || body.trim().length < 2 || (!identity && !isDemo && !human)) return; const headers: Record<string,string> = { "Content-Type":"application/json" }; if (token) headers.Authorization = `Bearer ${token}`; if (!isDemo) { const response = await fetch("/api/comments", { method:"POST", headers, body:JSON.stringify({ updateId, parentId:comment.id, authorName:identity ? "" : author, body, visitorId:getVisitorId(), turnstileToken:human ?? undefined, website:"" }) }); if (!response.ok) return; } onReply(comment.id, { id:`reply-${Date.now()}`, update_id:updateId, parent_id:comment.id, author_name:author, author_badge:identity?.badge ?? null, author_avatar:identity?.avatar ?? null, body:body.trim(), created_at:new Date().toISOString(), replies:[], reactions:{} }); setBody("");setOpen(false);setHuman(null);setVersion((v)=>v+1); }
-  return <article className="thread-bubble"><div className="thread-avatar">{comment.author_avatar ? <Image src={comment.author_avatar} alt="" width={34} height={34}/> : comment.author_name.slice(0,1)}</div><div className="thread-content"><div className="thread-head"><strong>{comment.author_name}</strong><RoleBadge badge={comment.author_badge}/><time>{new Date(comment.created_at).toLocaleDateString("id-ID")}</time></div><p>{comment.body}</p><div className="thread-actions">{REACTIONS.map((reaction)=><button type="button" key={reaction} onClick={()=>react(reaction)}>{REACTION_LABELS[reaction]}{(reactions[reaction] ?? 0) > 0 ? <b>{reactions[reaction]}</b> : null}</button>)}<button type="button" onClick={()=>setOpen(!open)}><Reply size={12}/>Balas</button></div>{open ? <form className="thread-reply-form" onSubmit={reply}>{!identity ? <input value={name} onChange={(event)=>setName(event.target.value)} placeholder="Nama kamu" required/> : null}<textarea value={body} onChange={(event)=>setBody(event.target.value)} placeholder={`Balas @${comment.author_name}`} required/>{!identity && !isDemo ? <HumanCheck key={version} action="comment_reply" onToken={setHuman}/> : null}<button type="submit"><Send size={13}/>Kirim</button></form> : null}<div className="reply-chain">{(comment.replies ?? []).map((reply)=><div className="reply-node" key={reply.id}><span className="reply-plus"><Plus size={12}/></span><div className="reply-bubble"><strong>{reply.author_name}</strong><RoleBadge badge={reply.author_badge}/><p>{reply.body}</p></div></div>)}</div></div></article>;
+  async function reply(event: React.FormEvent) { event.preventDefault(); const author = identity?.name ?? name.trim(); if (author.length < 2 || body.trim().length < 2 || (!identity && !isDemo && !proof)) return; const headers: Record<string,string> = { "Content-Type":"application/json" }; if (token) headers.Authorization = `Bearer ${token}`; if (!isDemo) { const response = await fetch("/api/comments", { method:"POST", headers, body:JSON.stringify({ updateId, parentId:comment.id, authorName:identity ? "" : author, body, visitorId:getVisitorId(), turnstileToken:human ?? undefined, turnstileProof:proof ?? undefined, website:"" }) }); if (!response.ok) return; } onReply(comment.id, { id:`reply-${Date.now()}`, update_id:updateId, parent_id:comment.id, author_name:author, author_badge:identity?.badge ?? null, author_avatar:identity?.avatar ?? null, body:body.trim(), created_at:new Date().toISOString(), replies:[], reactions:{} }); setBody("");setOpen(false);setHuman(null);setProof(null);setVersion((v)=>v+1); }
+  return <article className="thread-bubble"><div className="thread-avatar">{comment.author_avatar ? <Image src={comment.author_avatar} alt="" width={34} height={34}/> : comment.author_name.slice(0,1)}</div><div className="thread-content"><div className="thread-head"><strong>{comment.author_name}</strong><RoleBadge badge={comment.author_badge}/><time>{new Date(comment.created_at).toLocaleDateString("id-ID")}</time></div><p>{comment.body}</p><div className="thread-actions">{REACTIONS.map((reaction)=><button type="button" key={reaction} onClick={()=>react(reaction)}>{REACTION_LABELS[reaction]}{(reactions[reaction] ?? 0) > 0 ? <b>{reactions[reaction]}</b> : null}</button>)}<button type="button" onClick={()=>setOpen(!open)}><Reply size={12}/>Balas</button></div>{open ? <form className="thread-reply-form" onSubmit={reply}>{!identity ? <input value={name} onChange={(event)=>setName(event.target.value)} placeholder="Nama kamu" required/> : null}<textarea value={body} onChange={(event)=>setBody(event.target.value)} placeholder={`Balas @${comment.author_name}`} required/>{!identity && !isDemo ? <HumanCheck key={version} action="comment_reply" onToken={prepareReplyProof}/> : null}<button type="submit" disabled={!identity && !isDemo && !proof}><Send size={13}/>{!identity && !isDemo && human && !proof ? "Menyiapkan..." : "Kirim"}</button></form> : null}<div className="reply-chain">{(comment.replies ?? []).map((reply)=><div className="reply-node" key={reply.id}><span className="reply-plus"><Plus size={12}/></span><div className="reply-bubble"><strong>{reply.author_name}</strong><RoleBadge badge={reply.author_badge}/><p>{reply.body}</p></div></div>)}</div></div></article>;
 }
