@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { consumeApiRateLimit } from "@/lib/abuse";
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -32,58 +32,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
   }
 
+  const action = parsed.data.parentId ? "comment_reply" : "comment";
+  const hasBearer = request.headers.get("authorization")?.startsWith("Bearer ") ?? false;
+  const limiterPromise = consumeApiRateLimit(supabase, request, { action: "comment", limit: 5, windowSeconds: 600 });
+  const identityPromise = requestHasAdminAccess(request);
+  const humanPromise = hasBearer ? Promise.resolve<boolean | null>(null) : verifyTurnstile(request, parsed.data.turnstileToken, action);
+  const updatePromise = supabase.from("progress_updates").select("id").eq("id", parsed.data.updateId).or(`is_published.eq.true,scheduled_for.lte.${new Date().toISOString()}`).maybeSingle();
+  const parentPromise = parsed.data.parentId
+    ? supabase.from("comments").select("id,update_id,parent_id").eq("id", parsed.data.parentId).eq("status", "approved").maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  let allowed: boolean;
+  let identity: Awaited<ReturnType<typeof requestHasAdminAccess>>;
+  let human: boolean | null;
+  let updateResult: Awaited<typeof updatePromise>;
+  let parentResult: Awaited<typeof parentPromise>;
   try {
-    const allowed = await consumeApiRateLimit(supabase, request, {
-      action: "comment",
-      limit: 5,
-      windowSeconds: 600,
-    });
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Terlalu banyak komentar. Coba lagi beberapa menit lagi." },
-        { status: 429 },
-      );
-    }
+    [allowed, identity, human, updateResult, parentResult] = await Promise.all([limiterPromise, identityPromise, humanPromise, updatePromise, parentPromise]);
   } catch {
     return NextResponse.json({ error: "Proteksi anti-spam belum siap." }, { status: 503 });
   }
-
-  const identity = await requestHasAdminAccess(request);
+  if (!allowed) return NextResponse.json({ error: "Terlalu banyak komentar. Coba lagi beberapa menit lagi." }, { status: 429 });
   if (!identity) {
-    const action = parsed.data.parentId ? "comment_reply" : "comment";
-    const human = await verifyTurnstile(request, parsed.data.turnstileToken, action);
-    if (!human) {
-      return NextResponse.json({ error: "Verifikasi anti-bot gagal." }, { status: 403 });
-    }
+    const verified = human ?? await verifyTurnstile(request, parsed.data.turnstileToken, action);
+    if (!verified) return NextResponse.json({ error: "Verifikasi anti-bot gagal." }, { status: 403 });
   }
-
-  const { data: update } = await supabase
-    .from("progress_updates")
-    .select("id")
-    .eq("id", parsed.data.updateId)
-    .or(`is_published.eq.true,scheduled_for.lte.${new Date().toISOString()}`)
-    .maybeSingle();
-  if (!update) {
-    return NextResponse.json({ error: "Update tidak ditemukan." }, { status: 404 });
-  }
-
+  if (!updateResult.data) return NextResponse.json({ error: "Update tidak ditemukan." }, { status: 404 });
   if (parsed.data.parentId) {
-    const { data: parent } = await supabase
-      .from("comments")
-      .select("id, update_id, parent_id")
-      .eq("id", parsed.data.parentId)
-      .eq("status", "approved")
-      .maybeSingle();
-    if (
-      !parent ||
-      parent.update_id !== parsed.data.updateId ||
-      parent.parent_id !== null
-    ) {
-      return NextResponse.json(
-        { error: "Komentar yang dibalas tidak ditemukan." },
-        { status: 404 },
-      );
-    }
+    const parent = parentResult.data;
+    if (!parent || parent.update_id !== parsed.data.updateId || parent.parent_id !== null) return NextResponse.json({ error: "Komentar yang dibalas tidak ditemukan." }, { status: 404 });
   }
 
   // Authenticated owner/team comments use the protected profile. Typed names
@@ -122,7 +99,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Gagal menyimpan komentar." }, { status: 500 });
   }
 
-  revalidatePublicContent(parsed.data.updateId);
+  after(() => revalidatePublicContent(parsed.data.updateId));
   return NextResponse.json(
     { ok: true, identity: identity ? { badge: identity.badge, name: authorName } : null },
     { status: 201 },

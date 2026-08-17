@@ -8,6 +8,7 @@ import type { Contributor } from "@/lib/types";
 import { notFound } from "next/navigation";
 import ShareLinks from "@/components/share-links/ShareLinks";
 import UpdateDetailInteractions from "@/components/update-detail-interactions";
+import { StatusBadge } from "@/components/badges";
 
 export const revalidate = 300;
 export const dynamicParams = true;
@@ -130,7 +131,7 @@ export default async function UpdateDetailPage({ params }: PageProps) {
       </nav>
       <article className="detail-article">
         <div className="detail-meta">
-          <span className="detail-app">{update.app?.name ?? "XySpace"}</span><i /> <time dateTime={update.created_at}><CalendarDays size={14} /> {dateText(update.created_at)}</time>
+          <span className="detail-app">{update.app?.name ?? "XySpace"}</span><StatusBadge status={update.status}/><i /> <time dateTime={update.created_at}><CalendarDays size={14} /> {dateText(update.created_at)}</time>
           {update.version ? <><i /> <span className="update-version">{update.version}</span></> : null}
           <ContributorStack contributors={update.contributors ?? []} />
         </div>

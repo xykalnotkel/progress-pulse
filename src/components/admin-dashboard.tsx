@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import type { AuthorBadge, Comment, ProfileLink, Project, UpdateStatus } from "@/lib/types";
+import { RoleBadge, StatusBadge } from "@/components/badges";
 
 type Notice = { kind: "success" | "error"; text: string } | null;
 type ManagedComment = Comment & { update?: { id: string; title: string; app?: { name: string } | null } | null };
@@ -488,7 +489,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
             </div>
           </div>
 
-          {notice ? <div className={`admin-notice ${notice.kind}`}><CheckCircle2 size={17} />{notice.text}</div> : null}
+          {notice && !["posts", "apps", "profile"].includes(section) ? <div className={`admin-notice ${notice.kind}`}><CheckCircle2 size={17} />{notice.text}</div> : null}
 
           <div className="admin-panels">
             {section === "posts" ? <form className="admin-panel update-panel" id="new-update" onSubmit={createUpdate}>
@@ -533,6 +534,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                 <input type="checkbox" checked={updateForm.isPublished} onChange={(e) => setUpdateForm({ ...updateForm, isPublished: e.target.checked })} />
                 <span><b>{updateForm.isPublished ? "Publikasikan" : "Simpan sebagai draft"}</b><small>{updateForm.isPublished ? "Langsung tampil di feed publik." : "Hanya terlihat di control room."}</small></span>
               </label>
+              {notice ? <div className={`admin-inline-state ${notice.kind}`}>{saving ? "Sedang memproses... " : ""}{notice.text}</div> : null}
               <div className="update-form-actions">
                 {editingId ? <button className="reply-cancel" type="button" onClick={cancelEditing}>Batal edit</button> : null}
                 <button className="publish-button" disabled={saving !== null || !apps.length} type="submit">{saving === "update" ? "Menyimpan..." : <><Plus size={17} /> {editingId ? "Simpan perubahan" : updateForm.isPublished ? "Publish update" : "Simpan draft"}</>}</button>
@@ -550,6 +552,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
               <label>Link aplikasi<input type="url" placeholder="https://..." value={appForm.website} onChange={(e) => setAppForm({ ...appForm, website: e.target.value })} /></label>
               <label>Catatan / deskripsi<textarea maxLength={3000} placeholder="Deskripsi singkat aplikasi" value={appForm.description} onChange={(e) => setAppForm({ ...appForm, description: e.target.value })} /></label>
               <label className="draft-toggle"><input type="checkbox" checked={appForm.isPublished} onChange={(e) => setAppForm({ ...appForm, isPublished: e.target.checked })} /><span><b>{appForm.isPublished ? "Aplikasi publik" : "Aplikasi tersembunyi"}</b><small>Kontrol visibilitas kartu aplikasi.</small></span></label>
+              {notice ? <div className={`admin-inline-state ${notice.kind}`}>{saving ? "Sedang memproses... " : ""}{notice.text}</div> : null}
               <div className="update-form-actions">{editingAppId ? <button type="button" className="reply-cancel" onClick={cancelEditingApp}>Batal edit</button> : null}<button className="outline-submit" disabled={saving !== null} type="submit">{saving === "app" ? "Menyimpan..." : <><Plus size={16} /> {editingAppId ? "Simpan aplikasi" : "Tambahkan aplikasi"}</>}</button></div>
               <div className="app-list">
                 <p>APPS YANG SUDAH ADA</p>
@@ -577,7 +580,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                         <div className="moderation-head">
                           <CommentAvatar comment={comment} />
                           <strong>{comment.author_name}</strong>
-                          {comment.author_badge ? <span className={`comment-badge-text badge-text-${comment.author_badge.toLowerCase()}`}>{comment.author_badge}</span> : null}
+                          <RoleBadge badge={comment.author_badge}/>
                           {comment.author_title ? <span className="comment-title-mini">{comment.author_title}</span> : null}
                           {comment.parent_id ? <span className="mod-reply-chip">balasan</span> : null}
                           <span className="moderation-meta">{timeAgo(comment.created_at)}</span>
@@ -635,6 +638,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                   <LinkRowEditor key={idx} index={idx} link={link} updateLink={updateLink} removeLink={removeLink} />
                 ))}
               </div>
+              {notice ? <div className={`admin-inline-state ${notice.kind}`}>{profileBusy || avatarBusy || bannerBusy ? "Sedang memproses... " : ""}{notice.text}</div> : null}
               <button className="outline-submit" disabled={profileBusy} type="submit">{profileBusy ? "Menyimpan..." : <><Check size={16} /> Simpan profil</>}</button>
               <small className="profile-hint">Perubahan profil langsung berlaku ke seluruh web — termasuk balasan komentar publik dan avatar kontributor.</small>
             </form>
@@ -673,7 +677,7 @@ export default function AdminDashboard({ section }: { section: AdminSection }) {
                         <small>{update.app?.name ?? "Tanpa aplikasi"} · {new Date(update.created_at).toLocaleString("id-ID")}</small>
                       </div>
                       <div className="updates-list-cell updates-list-cell-meta">
-                        <span className={`status-pill status-${update.status}`}><i />{update.status}</span>
+                        <StatusBadge status={update.status}/>
                         {!update.is_published ? <span className="draft-chip">{update.scheduled_for ? "scheduled" : "draft"}</span> : null}
                         {update.tags?.slice(0, 2).map((tag) => <span className="contributor-chip" key={tag}>#{tag}</span>)}
                         {update.version ? <span className="update-version-mini">{update.version}</span> : null}

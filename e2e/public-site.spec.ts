@@ -24,7 +24,10 @@ test("detail is canonical, private, and directly interactive", async ({ page }) 
   await page.goto("/updates/update-01");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/updates\/update-01$/);
   await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "article");
+  await expect(page.getByRole("heading", { name: "Tulis komentar" })).toHaveCount(0);
+  await page.getByRole("button", { name: /Komentar/ }).click();
   await expect(page.getByRole("heading", { name: "Tulis komentar" })).toBeVisible();
+  await expect(page.locator(".comment-sheet")).toBeVisible();
   await expect(page.locator(".thread-bubble")).toHaveCount(2);
   await expect(page.locator(".reply-plus")).toHaveCount(1);
   expect(await page.content()).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);

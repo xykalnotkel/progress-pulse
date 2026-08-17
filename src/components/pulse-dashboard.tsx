@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { Contributor, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
 import type { PublicOwnerProfile } from "@/lib/public-profile";
+import { StatusBadge } from "@/components/badges";
 
 
 function subscribeUrl(callback: () => void) {
@@ -169,10 +170,9 @@ function ContributorStack({ contributors }: { contributors: Contributor[] }) {
 }
 
 function UpdatePost({ update }: { update: ProgressUpdate }) {
-  const meta = statusMeta[update.status];
   return <article className="update-post">
     <Link className="update-post-visual" href={`/updates/${update.id}`} aria-label={`Baca ${update.title}`}>
-      <PreviewArt update={update}/><span className={`status-pill ${meta.className}`}><i/>{meta.label}</span>
+      <PreviewArt update={update}/><span className="status-badge-float"><StatusBadge status={update.status}/></span>
     </Link>
     <div className="update-post-body">
       <div className="update-post-meta"><span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small"/> {update.app?.name}</span><span>{dateText(update.created_at)}</span>{update.version ? <span className="update-version">{update.version}</span> : null}{(update.tags ?? []).slice(0,3).map((tag)=><span className="update-tag" key={tag}>#{tag}</span>)}<ContributorStack contributors={update.contributors ?? []}/></div>

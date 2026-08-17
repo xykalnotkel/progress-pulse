@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { z } from "zod";
 import { consumeApiRateLimit, createVisitorHash } from "@/lib/abuse";
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -62,6 +62,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Gagal menyimpan reaksi." }, { status: 500 });
   }
 
-  revalidatePublicContent(comment.update_id);
+  after(() => revalidatePublicContent(comment.update_id));
   return NextResponse.json({ ok: true }, { status: 201 });
 }
