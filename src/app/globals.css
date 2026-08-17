@@ -469,3 +469,29 @@ footer .brand-logo { width: 24px; height: 24px; }
   0%,100%{opacity:0;transform:translateX(0)}
   50%{opacity:.9;transform:translateX(2px)}
 }
+
+/* Admin: daftar update + confirmation dialog */
+.updates-panel{margin-top:16px}
+.updates-list-table{display:grid;gap:9px}
+.updates-list-row{display:grid;grid-template-columns:1.4fr 1fr auto;gap:14px;align-items:center;padding:13px 14px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:rgba(20,17,26,.6)}
+.updates-list-cell-title strong{display:block;color:#efeaf6;font-size:12.5px;margin-bottom:3px}
+.updates-list-cell-title small{display:block;color:#8d8398;font-size:9.5px}
+.updates-list-cell-meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.updates-list-cell-actions{display:flex;gap:7px;justify-content:flex-end}
+.updates-list-cell-actions .mod-reply,
+.updates-list-cell-actions .mod-reject{cursor:pointer;display:flex;align-items:center;gap:5px;padding:7px 11px;border-radius:8px;border:0;font-size:10px;font-weight:600}
+.updates-list-cell-actions .mod-reply{color:#cfc2e4;background:rgba(120,90,160,.18);box-shadow:inset 0 0 0 1px rgba(190,160,230,.18);text-decoration:none}
+.updates-list-cell-actions .mod-reply:hover{background:rgba(120,90,160,.32)}
+.update-version-mini{font-family:ui-monospace,monospace;font-size:9px;color:#c3a5ff;background:rgba(146,84,238,.16);padding:2px 7px;border-radius:999px}
+.contributor-chip{font-size:9px;color:#ffd5a3;background:rgba(196,130,38,.18);padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+@media(max-width:720px){.updates-list-row{grid-template-columns:1fr;gap:8px}.updates-list-cell-meta{justify-content:flex-start}.updates-list-cell-actions{justify-content:flex-start}}
+
+/* Confirmation overlay */
+.confirm-overlay{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:30px;background:rgba(7,5,11,.74);backdrop-filter:blur(10px);animation:fade .16s ease-out}
+.confirm-card{position:relative;max-width:460px;padding:24px 26px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:linear-gradient(160deg,rgba(33,29,42,.85),rgba(22,19,28,.85));display:grid;gap:13px;box-shadow:0 35px 80px rgba(0,0,0,.5)}
+.confirm-card h3{margin:0;font-size:18px;letter-spacing:-.04em}
+.confirm-card p{margin:0;color:#b9aec9;font-size:12px;line-height:1.6}
+.confirm-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:6px}
+.confirm-actions .mod-reject{cursor:pointer;border:0;background:linear-gradient(135deg,#d9534f,#a02e2a);color:#fff;padding:8px 13px;border-radius:9px;font-size:11px;font-weight:700;box-shadow:0 4px 14px rgba(217,83,79,.3)}
+.confirm-actions .mod-reject:hover{filter:brightness(1.1)}
+.confirm-actions .mod-reject:disabled{opacity:.55;cursor:wait}

@@ -31,6 +31,11 @@ type Notice = { kind: "success" | "error"; text: string } | null;
 type ManagedComment = Comment & { update?: { id: string; title: string; app?: { name: string } | null } | null };
 type Profile = { email: string; display_name: string | null; title: string | null; avatar_url: string | null; banner_url: string | null; bio: string | null; links: ProfileLink[]; badge: AuthorBadge | null };
 type TeamMember = { email: string; added_at: string; added_by: string | null };
+type AdminUpdate = {
+  id: string; title: string; status: string; version: string | null; is_published: boolean;
+  created_at: string; contributors: string[] | null;
+  app: { id: string; name: string; slug: string } | null;
+};
 
 const blankApp = { name: "", slug: "", tagline: "", description: "", website: "" };
 const blankUpdate = { appId: "", title: "", description: "", status: "building" as UpdateStatus, version: "", media: "", contributorsText: "" };
@@ -101,6 +106,9 @@ export default function AdminPage() {
   const [teamList, setTeamList] = useState<TeamMember[]>([]);
   const [teamEmail, setTeamEmail] = useState("");
   const [teamBusy, setTeamBusy] = useState(false);
+  const [updatesList, setUpdatesList] = useState<AdminUpdate[] | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const selectedApp = useMemo(() => apps.find((app) => app.id === updateForm.appId), [apps, updateForm.appId]);
 
@@ -167,6 +175,16 @@ export default function AdminPage() {
       try {
         const response = await fetch("/api/admin/team-members", { headers: { Authorization: `Bearer ${token}` } });
         if (response.ok) setTeamList((await response.json()) as TeamMember[]);
+      } catch { /* non fatal */ }
+    })();
+  }, [token, isOwner]);
+
+  useEffect(() => {
+    if (!token || !isOwner) return;
+    (async () => {
+      try {
+        const response = await fetch("/api/admin/updates", { headers: { Authorization: `Bearer ${token}` } });
+        if (response.ok) setUpdatesList((await response.json()) as AdminUpdate[]);
       } catch { /* non fatal */ }
     })();
   }, [token, isOwner]);
@@ -258,6 +276,18 @@ export default function AdminPage() {
     } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal menambah tim." }); }
     finally { setTeamBusy(false); }
   }
+  async function deleteUpdate(id: string) {
+    if (!token || !isOwner) return;
+    setDeletingId(id);
+    try {
+      const response = await fetch(`/api/admin/updates/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error ?? "Gagal menghapus update."); }
+      setUpdatesList((list) => (list ?? []).filter((u) => u.id !== id));
+      setNotice({ kind: "success", text: "Update dihapus. Komentar, like, dan reaksi terkait ikut bersih via foreign key cascade." });
+    } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal menghapus update." }); }
+    finally { setDeletingId(null); setConfirmDeleteId(null); }
+  }
+
   async function removeTeamMember(memberEmail: string) {
     setTeamBusy(true);
     try {
@@ -358,6 +388,7 @@ export default function AdminPage() {
           <a href="#new-app"><Layers3 size={16} /> Kelola aplikasi <span>{apps.length}</span></a>
           <a href="#profile"><UserRound size={16} /> Profile tim</a>
           {isOwner ? <a href="#team"><Users size={16} /> XyTeam <span>{teamList.length}</span></a> : null}
+          <a href="#updates-list"><Layers3 size={16} /> Daftar update <span>{updatesList?.length ?? 0}</span></a>
           <a href="/docs/ai"><WandSparkles size={16} /> AI integration <ExternalLink size={13} /></a>
           <div className="admin-tip"><Sparkles size={17} /><p><b>Tip singkat</b>Komentar publik tampil langsung — owner bisa sembunyikan yang toxic; team balas dengan badge XyTeam dari profil custom mereka.</p></div>
         </aside>
@@ -528,6 +559,61 @@ export default function AdminPage() {
                 teamList.map((m) => <div className="team-item" key={m.email}><div><span className="comment-avatar">{m.email.slice(0, 1).toUpperCase()}</span><b>{m.email}</b><small>sejak {new Date(m.added_at).toLocaleDateString("id-ID")}</small></div><button type="button" onClick={() => removeTeamMember(m.email)} disabled={teamBusy}>Hapus</button></div>)}
             </div>
           </section> : null}
+
+          {isOwner ? (
+            <section className="admin-panel updates-panel" id="updates-list">
+              <div className="panel-heading">
+                <div><p className="admin-kicker">BLOG POSTS</p><h2>Daftar update</h2></div>
+                <span><span className="small-live" /> OWNER ONLY</span>
+              </div>
+              {updatesList === null ? (
+                <p className="moderation-empty">Memuat daftar update...</p>
+              ) : updatesList.length === 0 ? (
+                <p className="moderation-empty">Belum ada update. Buat yang pertama lewat form di atas.</p>
+              ) : (
+                <div className="updates-list-table">
+                  {updatesList.map((update) => (
+                    <div className="updates-list-row" key={update.id}>
+                      <div className="updates-list-cell updates-list-cell-title">
+                        <strong>{update.title}</strong>
+                        <small>{update.app?.name ?? "Tanpa aplikasi"} · {new Date(update.created_at).toLocaleString("id-ID")}</small>
+                      </div>
+                      <div className="updates-list-cell updates-list-cell-meta">
+                        <span className={`status-pill status-${update.status}`}><i />{update.status}</span>
+                        {update.version ? <span className="update-version-mini">{update.version}</span> : null}
+                        {(update.contributors ?? []).length ? <span className="contributor-chip">{update.contributors!.length} kontributor</span> : null}
+                      </div>
+                      <div className="updates-list-cell updates-list-cell-actions">
+                        <Link className="mod-reply" href={`/updates/${update.id}`} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Lihat</Link>
+                        <button
+                          type="button"
+                          className="mod-reject"
+                          disabled={deletingId === update.id}
+                          onClick={() => setConfirmDeleteId(update.id)}
+                        >
+                          <X size={13} /> Hapus
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {confirmDeleteId ? (
+                <div className="confirm-overlay" role="dialog" aria-modal="true">
+                  <div className="confirm-card">
+                    <h3>Hapus update ini?</h3>
+                    <p>Semua komentar, like, dan reaksi terkait akan ikut terhapus (foreign key cascade). Tindakan ini nggak bisa dibatalkan.</p>
+                    <div className="confirm-actions">
+                      <button type="button" className="reply-cancel" onClick={() => setConfirmDeleteId(null)}>Batal</button>
+                      <button type="button" className="mod-reject" disabled={deletingId !== null} onClick={() => deleteUpdate(confirmDeleteId)}>
+                        {deletingId === confirmDeleteId ? "Menghapus..." : "Ya, hapus permanen"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="ai-callout">
             <div className="ai-spark"><WandSparkles size={21} /></div>
