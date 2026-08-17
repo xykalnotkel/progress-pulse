@@ -21,8 +21,9 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Public comments appear instantly with invisible Turnstile verification, durable rate limits, and an owner-only hide/show panel
 - Real like counters persisted in the database with server-side anonymous deduplication
 - Google login protected admin control room
-- Owner workflow for create, edit, draft/publish, and delete with server-controlled timestamps
+- Owner workflow for create/edit apps and create/edit/draft/publish/delete updates with server-controlled timestamps
 - RSS 2.0 feed at `/feed.xml` for release readers and aggregators
+- Privacy-documented Vercel Analytics and Speed Insights for production observability
 - Server-validated Cloudinary uploads with file-signature checks for admin and automation
 - An AI ingestion API that can create apps, make progress posts, upload media, attach contributor emails, and (optionally) generate a title/description draft, documented on the [AI docs page](/docs/ai)
 - Cloudinary media delivered optimized automatically: compression (`q_auto`) and WebP/AVIF (`f_auto`) baked into stored URLs
@@ -31,7 +32,7 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Custom error / 404 / loading pages with branded skeleton loaders and shimmer image fade-in
 - Admin route middleware: no-store, noindex, X-Robots-Tag for the protected control room
 - Legal pages: [Terms](/terms), [Privacy](/privacy), [Cookies](/cookies), [Disclaimer](/disclaimer)
-- Security headers, invisible Turnstile, byte-signature media validation, durable database rate limits, and secret-scan CI
+- Security headers, invisible Turnstile, byte-signature media validation, durable database rate limits, secret scanning, unit tests, and Playwright browser E2E
 
 ## Security model
 

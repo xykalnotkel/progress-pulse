@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -46,6 +48,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: websiteJsonLd }} />
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

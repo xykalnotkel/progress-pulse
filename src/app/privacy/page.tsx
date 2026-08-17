@@ -45,7 +45,7 @@ const sections = [
       "Beberapa pemroses data terlibat dalam operasional Situs:",
     ],
     list: [
-      "Vercel — hosting aplikasi dan log infrastruktur.",
+      "Vercel — hosting aplikasi, log infrastruktur, analytics agregat, dan pengukuran performa halaman.",
       "Supabase — database, autentikasi Google, dan penyimpanan komentar/like.",
       "Cloudinary — penyimpanan dan pengiriman media (gambar/video).",
       "Cloudflare Turnstile — verifikasi anti-bot pada komentar anonim.",

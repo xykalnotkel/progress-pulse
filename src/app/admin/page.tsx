@@ -37,7 +37,7 @@ type AdminUpdate = {
   app: { id: string; name: string; slug: string } | null;
 };
 
-const blankApp = { name: "", slug: "", tagline: "", description: "", website: "" };
+const blankApp = { name: "", slug: "", tagline: "", description: "", website: "", coverUrl: "", isPublished: true };
 const blankUpdate = { appId: "", title: "", description: "", status: "building" as UpdateStatus, version: "", media: "", contributorsText: "", isPublished: true };
 
 function slugify(value: string) {
@@ -76,6 +76,7 @@ function LinkRowEditor({ index, link, updateLink, removeLink }: { index: number;
 export default function AdminPage() {
   const [apps, setApps] = useState<Project[]>([]);
   const [appForm, setAppForm] = useState(blankApp);
+  const [editingAppId, setEditingAppId] = useState<string | null>(null);
   const [updateForm, setUpdateForm] = useState(blankUpdate);
   const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
@@ -121,8 +122,8 @@ export default function AdminPage() {
       if (!sessionData.session) { window.location.replace("/login"); return; }
       setToken(sessionData.session.access_token);
       setEmail(sessionData.session.user.email ?? null);
-      const { data } = await supabase.from("apps").select("*").order("created_at", { ascending: false });
-      const rows = (data ?? []) as Project[];
+      const appResponse = await fetch("/api/admin/apps", { headers: { Authorization: `Bearer ${sessionData.session.access_token}` } });
+      const rows = appResponse.ok ? ((await appResponse.json()) as Project[]) : [];
       setApps(rows);
       if (rows[0]) setUpdateForm((current) => ({ ...current, appId: rows[0].id }));
       setLoading(false);
@@ -302,19 +303,41 @@ export default function AdminPage() {
     finally { setTeamBusy(false); }
   }
 
+  function startEditingApp(app: Project) {
+    setEditingAppId(app.id);
+    setAppForm({
+      name: app.name,
+      slug: app.slug,
+      tagline: app.tagline ?? "",
+      description: app.description ?? "",
+      website: app.links[0]?.url ?? "",
+      coverUrl: app.cover_url ?? "",
+      isPublished: app.is_published,
+    });
+    document.getElementById("new-app")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function cancelEditingApp() {
+    setEditingAppId(null);
+    setAppForm(blankApp);
+  }
+
   async function createApp(event: FormEvent) {
     event.preventDefault(); setNotice(null); setSaving("app");
     try {
-      const response = await fetch("/api/admin/apps", {
-        method: "POST",
+      const response = await fetch(editingAppId ? `/api/admin/apps/${editingAppId}` : "/api/admin/apps", {
+        method: editingAppId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
-        body: JSON.stringify({ name: appForm.name, slug: appForm.slug, tagline: appForm.tagline || null, description: appForm.description || null, links: appForm.website ? [{ label: "Open app", url: appForm.website }] : [] }),
+        body: JSON.stringify({ name: appForm.name, slug: appForm.slug, tagline: appForm.tagline || null, description: appForm.description || null, coverUrl: appForm.coverUrl || null, links: appForm.website ? [{ label: "Open app", url: appForm.website }] : [], isPublished: appForm.isPublished }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Gagal membuat aplikasi.");
       const app = data as Project;
-      setApps((items) => [app, ...items]); setUpdateForm((current) => ({ ...current, appId: app.id })); setAppForm(blankApp);
-      setNotice({ kind: "success", text: "Aplikasi baru sudah dibuat." });
+      setApps((items) => editingAppId ? items.map((item) => item.id === app.id ? app : item) : [app, ...items]);
+      if (!editingAppId) setUpdateForm((current) => ({ ...current, appId: app.id }));
+      setEditingAppId(null);
+      setAppForm(blankApp);
+      setNotice({ kind: "success", text: editingAppId ? "Aplikasi berhasil diperbarui." : "Aplikasi baru sudah dibuat." });
     } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal membuat aplikasi." }); }
     finally { setSaving(null); }
   }
@@ -491,7 +514,7 @@ export default function AdminPage() {
 
             <form className="admin-panel app-panel" id="new-app" onSubmit={createApp}>
               <div className="panel-heading">
-                <div><p className="admin-kicker">YOUR ECOSYSTEM</p><h2>Add an app</h2></div>
+                <div><p className="admin-kicker">YOUR ECOSYSTEM</p><h2>{editingAppId ? "Edit an app" : "Add an app"}</h2></div>
                 <span className="panel-number">0{apps.length + 1}</span>
               </div>
               <label>Nama aplikasi<input required maxLength={80} placeholder="Contoh: Orbit" value={appForm.name} onChange={(e) => setAppForm({ ...appForm, name: e.target.value, slug: appForm.slug || slugify(e.target.value) })} /></label>
@@ -499,10 +522,11 @@ export default function AdminPage() {
               <label>Tagline<input maxLength={180} placeholder="A one-line promise" value={appForm.tagline} onChange={(e) => setAppForm({ ...appForm, tagline: e.target.value })} /></label>
               <label>Link aplikasi<input type="url" placeholder="https://..." value={appForm.website} onChange={(e) => setAppForm({ ...appForm, website: e.target.value })} /></label>
               <label>Catatan / deskripsi<textarea maxLength={3000} placeholder="Deskripsi singkat aplikasi" value={appForm.description} onChange={(e) => setAppForm({ ...appForm, description: e.target.value })} /></label>
-              <button className="outline-submit" disabled={saving !== null} type="submit">{saving === "app" ? "Menyimpan..." : <><Plus size={16} /> Tambahkan aplikasi</>}</button>
+              <label className="draft-toggle"><input type="checkbox" checked={appForm.isPublished} onChange={(e) => setAppForm({ ...appForm, isPublished: e.target.checked })} /><span><b>{appForm.isPublished ? "Aplikasi publik" : "Aplikasi tersembunyi"}</b><small>Kontrol visibilitas kartu aplikasi.</small></span></label>
+              <div className="update-form-actions">{editingAppId ? <button type="button" className="reply-cancel" onClick={cancelEditingApp}>Batal edit</button> : null}<button className="outline-submit" disabled={saving !== null} type="submit">{saving === "app" ? "Menyimpan..." : <><Plus size={16} /> {editingAppId ? "Simpan aplikasi" : "Tambahkan aplikasi"}</>}</button></div>
               <div className="app-list">
                 <p>APPS YANG SUDAH ADA</p>
-                {apps.length ? apps.map((app) => <div key={app.id}><span>{app.name.slice(0, 1)}</span><b>{app.name}</b><code>/{app.slug}</code></div>) : <small>Belum ada aplikasi. Buat yang pertama di sini.</small>}
+                {apps.length ? apps.map((app) => <div key={app.id}><span>{app.name.slice(0, 1)}</span><b>{app.name}</b><code>/{app.slug}</code><button type="button" className="mod-reply" onClick={() => startEditingApp(app)}>Edit</button></div>) : <small>Belum ada aplikasi. Buat yang pertama di sini.</small>}
               </div>
             </form>
           </div> : null}
