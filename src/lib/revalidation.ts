@@ -7,6 +7,7 @@ export function revalidatePublicContent(updateId?: string) {
   revalidatePath("/apps");
   revalidatePath("/updates");
   revalidatePath("/about");
+  revalidatePath("/profile");
   revalidatePath("/sitemap.xml");
   if (updateId) revalidatePath(`/updates/${updateId}`);
 }

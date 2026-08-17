@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Heart, MessageCircle } from "lucide-react";
+import { ArrowLeft, CalendarDays } from "lucide-react";
 import { getPublicUpdateById } from "@/lib/feed";
 import { getSiteUrl } from "@/lib/site-url";
-import type { Comment, Contributor } from "@/lib/types";
+import type { Contributor } from "@/lib/types";
 import { notFound } from "next/navigation";
 import ShareLinks from "@/components/share-links/ShareLinks";
+import UpdateDetailInteractions from "@/components/update-detail-interactions";
 
 export const revalidate = 300;
 
@@ -14,19 +15,6 @@ type PageProps = { params: Promise<{ id: string }> };
 
 function dateText(value: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(new Date(value));
-}
-
-function relativeText(value: string) {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (seconds < 45) return "baru saja";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} menit lalu`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} jam lalu`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} hari lalu`;
-  if (days < 30) return `${Math.floor(days / 7)} minggu lalu`;
-  return dateText(value);
 }
 
 function imageMedia(url?: string) {
@@ -80,18 +68,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       images: [ogImage],
     },
   };
-}
-
-function CommentBadge({ badge }: { badge?: string | null }) {
-  if (!badge) return null;
-  return <span className={`comment-badge-text badge-text-${badge.toLowerCase()}`}>{badge}</span>;
-}
-
-function CommentAvatar({ comment }: { comment: Comment }) {
-  if (comment.author_avatar) {
-    return <Image className="comment-avatar comment-avatar-img" src={comment.author_avatar} alt="" width={27} height={27} />;
-  }
-  return <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>;
 }
 
 function ContributorStack({ contributors }: { contributors: Contributor[] }) {
@@ -164,27 +140,12 @@ export default async function UpdateDetailPage({ params }: PageProps) {
             )}
           </div>
         ) : null}
-        <div className={`detail-reactions ${likeCount || commentCount ? "" : "detail-reactions-empty"}`}>
-          <span><Heart size={14} /> {likeCount} likes</span>
-          <span><MessageCircle size={14} /> {commentCount} komentar</span>
-        </div>
         <ShareLinks url={shareUrl} title={update.title} />
+        <UpdateDetailInteractions updateId={update.id} initialComments={comments} initialLikeCount={likeCount} initialCommentCount={commentCount} isDemo={process.env.NEXT_PUBLIC_DEMO_MODE === "true"} />
         <div className="detail-bottom">
           <Link href="/updates"><ArrowLeft size={15} /> Kembali ke progress log</Link>
         </div>
-        <div className="detail-comments">
-          <div className="comments-heading"><h3>Komentar <span>{commentCount}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>
-          {comments.length ? (
-            <div className="detail-comments-list">
-              {comments.map((comment) => (
-                <CommentBlock key={comment.id} comment={comment} />
-              ))}
-            </div>
-          ) : (
-            <p className="detail-comments-empty">Belum ada komentar untuk update ini. Buka progress log untuk ikut memberi masukan.</p>
-          )}
-          <p className="detail-comments-note"><MessageCircle size={17} /><span>Untuk menulis komentar, balasan, dan reaksi, langsung lewat halaman progress log.</span></p>
-        </div>
+
       </article>
       <footer className="detail-footer">
         <div><Link href="/">XySpace Blog</Link> &nbsp;·&nbsp; <Link href="/updates">Semua update</Link></div>
@@ -196,26 +157,5 @@ export default async function UpdateDetailPage({ params }: PageProps) {
         </div>
       </footer>
     </main>
-  );
-}
-
-function CommentBlock({ comment, parent }: { comment: Comment; parent?: Comment }) {
-  const isTeam = comment.author_badge === "XyDev" || comment.author_badge === "XyTeam";
-  return (
-    <div className={`comment ${isTeam ? "comment-team" : ""} ${parent ? "comment-reply" : ""}`}>
-      {parent ? <div className="thread-line" aria-hidden /> : null}
-      <CommentAvatar comment={comment} />
-      <div className="comment-main">
-        <div className={`comment-head ${isTeam ? "comment-head-team" : ""}`}>
-          <strong>{comment.author_name}</strong>
-          <CommentBadge badge={comment.author_badge} />
-          {comment.author_title ? <span className="comment-title">{comment.author_title}</span> : null}
-          <span className="comment-time" title={new Date(comment.created_at).toLocaleString("id-ID")}>{relativeText(comment.created_at)}</span>
-        </div>
-        {parent ? <span className="replied-to">membalas <strong>@{parent.author_name.split(" ")[0]}</strong></span> : null}
-        <p>{comment.body}</p>
-        {!parent ? (comment.replies ?? []).map((reply) => <CommentBlock key={reply.id} comment={reply} parent={comment} />) : null}
-      </div>
-    </div>
   );
 }

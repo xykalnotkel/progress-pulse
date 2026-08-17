@@ -23,7 +23,7 @@ const payload = z.object({
 /** Create a progress update from the authenticated control room. */
 export async function POST(request: Request) {
   const identity = await requestHasAdminAccess(request);
-  if (!identity || !identity.isOwner) {
+  if (!identity) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 /** Owner-only listing of every progress update with app and contributor data. */
 export async function GET(request: Request) {
   const identity = await requestHasAdminAccess(request);
-  if (!identity || !identity.isOwner) {
+  if (!identity) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

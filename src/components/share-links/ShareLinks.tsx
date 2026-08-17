@@ -1,39 +1,34 @@
 "use client";
 
 import { useState } from "react";
+import { Copy, Plus, Share2, X as Close } from "lucide-react";
+import { FaFacebookF, FaTelegram, FaTiktok, FaWhatsapp, FaXTwitter } from "react-icons/fa6";
 
 type Props = { url: string; title: string };
 
 export default function ShareLinks({ url, title }: Props) {
+  const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const text = `${title} — dari XySpace Blog`;
-  const x = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
-  const facebook = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
-  const whatsapp = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
-  const telegram = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
-  const tiktok = `https://www.tiktok.com/share?url=${encodeURIComponent(url)}`;
+  const links = {
+    x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`,
+    telegram: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+  };
 
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1100);
-    } catch {
-      /* noop */
-    }
-  }
+  async function copyLink() { try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch { /* noop */ } }
+  async function nativeShare() { if (navigator.share) await navigator.share({ title, text, url }); else await copyLink(); }
 
-  return (
-    <div className="share-bar">
-      <span className="share-label">Bagikan:</span>
-      <a className="share-btn share-btn-x" href={x} target="_blank" rel="noreferrer" aria-label="Bagikan ke X (Twitter)">X</a>
-      <a className="share-btn share-btn-fb" href={facebook} target="_blank" rel="noreferrer" aria-label="Bagikan ke Facebook">Facebook</a>
-      <a className="share-btn share-btn-wa" href={whatsapp} target="_blank" rel="noreferrer" aria-label="Bagikan ke WhatsApp">WhatsApp</a>
-      <a className="share-btn share-btn-tg" href={telegram} target="_blank" rel="noreferrer" aria-label="Bagikan ke Telegram">Telegram</a>
-      <a className="share-btn share-btn-tt" href={tiktok} target="_blank" rel="noreferrer" aria-label="Bagikan ke TikTok">TikTok</a>
-      <button type="button" className="share-btn share-btn-copy" onClick={copyLink} aria-label="Salin URL">
-        {copied ? "Tersalin" : "Salin URL"}
-      </button>
-    </div>
-  );
+  return <div className="share-cluster">
+    <button type="button" className="share-main" onClick={() => setOpen((value) => !value)} aria-expanded={open}>{open ? <Close size={16}/> : <Plus size={17}/>}<span>Bagikan</span></button>
+    {open ? <div className="share-popover">
+      <a href={links.x} target="_blank" rel="noreferrer" aria-label="Bagikan ke X"><FaXTwitter/></a>
+      <a href={links.facebook} target="_blank" rel="noreferrer" aria-label="Bagikan ke Facebook"><FaFacebookF/></a>
+      <a href={links.whatsapp} target="_blank" rel="noreferrer" aria-label="Bagikan ke WhatsApp"><FaWhatsapp/></a>
+      <a href={links.telegram} target="_blank" rel="noreferrer" aria-label="Bagikan ke Telegram"><FaTelegram/></a>
+      <button type="button" onClick={nativeShare} aria-label="Bagikan lewat TikTok atau aplikasi lain"><FaTiktok/></button>
+      <button type="button" onClick={copyLink} aria-label="Salin tautan">{copied ? <Share2/> : <Copy/>}</button>
+    </div> : null}
+  </div>;
 }

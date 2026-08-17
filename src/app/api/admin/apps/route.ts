@@ -20,7 +20,7 @@ const payload = z.object({
 
 export async function GET(request: Request) {
   const identity = await requestHasAdminAccess(request);
-  if (!identity || !identity.isOwner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
   const { data, error } = await supabase.from("apps").select("*").order("created_at", { ascending: false });

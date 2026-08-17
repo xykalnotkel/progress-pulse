@@ -282,3 +282,11 @@ alter table public.progress_updates drop constraint if exists progress_updates_t
 alter table public.progress_updates add constraint progress_updates_tags_limit check (cardinality(tags) <= 10);
 create index if not exists progress_updates_schedule_idx on public.progress_updates(scheduled_for) where scheduled_for is not null;
 create index if not exists progress_updates_tags_idx on public.progress_updates using gin(tags);
+
+-- ============================================================
+-- Public profile status
+-- ============================================================
+alter table public.profiles add column if not exists status_text text check (char_length(status_text) <= 80);
+alter table public.profiles add column if not exists status_kind text not null default 'offline' check (status_kind in ('online','building','focus','away','offline'));
+alter table public.profiles add column if not exists activity_text text check (char_length(activity_text) <= 120);
+alter table public.profiles add column if not exists status_updated_at timestamptz;

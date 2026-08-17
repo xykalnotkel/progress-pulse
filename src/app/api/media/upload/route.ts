@@ -31,9 +31,6 @@ export async function POST(request: Request) {
   }
 
   const purpose = parsedPurpose.data;
-  if (purpose === "update" && !identity.isOwner) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
   if (file.size < 1 || file.size > maximumBytes[purpose]) {
     return NextResponse.json({ error: "Ukuran file melewati batas upload." }, { status: 413 });
   }

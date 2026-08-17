@@ -4,7 +4,7 @@ Jalankan migration secara berurutan melalui Supabase SQL Editor atau koneksi dat
 
 | File | Perubahan |
 | --- | --- |
-| `schema.sql` | Skema lengkap untuk instalasi baru. Tidak perlu menjalankan migration 001–007 setelah file ini. |
+| `schema.sql` | Skema lengkap untuk instalasi baru. Tidak perlu menjalankan migration 001–008 setelah file ini. |
 | `migrations/001_likes.sql` | Tabel like. |
 | `migrations/002_comment_threads_and_reactions.sql` | Thread komentar, badge penulis, dan reaksi. |
 | `migrations/003_profiles_and_avatars.sql` | Profil admin/tim dan avatar komentar. |
@@ -12,6 +12,7 @@ Jalankan migration secara berurutan melalui Supabase SQL Editor atau koneksi dat
 | `migrations/005_private_server_data.sql` | Menutup akses browser langsung ke tabel sensitif dan mengaktifkan RLS `team_members`. |
 | `migrations/006_durable_abuse_controls.sql` | Rate limiter database serta deduplikasi like/reaksi berbasis hash. |
 | `migrations/007_scheduling_and_tags.sql` | Jadwal publikasi dan tags update. |
+| `migrations/008_public_profile_status.sql` | Status dan aktivitas manual untuk profil publik. |
 
 Migration menggunakan operasi idempotent sebisa mungkin sehingga aman dijalankan ulang. Migration 005 dan 006 harus aktif sebelum deployment kode yang memakai `ABUSE_HASH_SECRET`; urutannya:
 

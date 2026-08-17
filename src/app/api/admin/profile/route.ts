@@ -15,6 +15,9 @@ const payload = z.object({
   bannerUrl: cloudinaryUrl.optional().nullable(),
   bio: z.string().trim().max(240).optional().nullable(),
   links: z.array(link).max(6).optional(),
+  statusText: z.string().trim().max(80).optional().nullable(),
+  statusKind: z.enum(["online", "building", "focus", "away", "offline"]).optional(),
+  activityText: z.string().trim().max(120).optional().nullable(),
 });
 
 export async function GET(request: Request) {
@@ -50,6 +53,10 @@ export async function PUT(request: Request) {
   if (parsed.data.bannerUrl !== undefined) update.banner_url = parsed.data.bannerUrl;
   if (parsed.data.bio !== undefined) update.bio = parsed.data.bio;
   if (parsed.data.links !== undefined) update.links = parsed.data.links;
+  if (parsed.data.statusText !== undefined) update.status_text = parsed.data.statusText;
+  if (parsed.data.statusKind !== undefined) update.status_kind = parsed.data.statusKind;
+  if (parsed.data.activityText !== undefined) update.activity_text = parsed.data.activityText;
+  if (parsed.data.statusText !== undefined || parsed.data.statusKind !== undefined || parsed.data.activityText !== undefined) update.status_updated_at = new Date().toISOString();
 
   const { error } = await supabase.from("profiles").upsert(update, { onConflict: "email" });
   if (error) return NextResponse.json({ error: "Gagal menyimpan profil." }, { status: 500 });

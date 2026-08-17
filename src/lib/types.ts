@@ -36,6 +36,10 @@ export type PublicProfile = {
   bio: string | null;
   links: ProfileLink[];
   badge: AuthorBadge | null;
+  status_text?: string | null;
+  status_kind?: "online" | "building" | "focus" | "away" | "offline";
+  activity_text?: string | null;
+  status_updated_at?: string | null;
 };
 
 export type Comment = {

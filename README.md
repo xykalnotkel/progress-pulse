@@ -16,8 +16,9 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Glossy purple / black / white visual system with dark and light modes
 - Multiple apps, each with its own external link and slug
 - Searchable public timeline with app/status filters, Cloudinary media, real likes, and threaded comments
-- Comment threads: visitors can reply, and react with "Membantu / Setuju / Terima kasih"
-- Owner and team replies carry badges: **XyDev** (owner) and **XyTeam** (collaborators)
+- Detail post is fully interactive: clear like/comment actions, direct comment form, reactions, and connected bubble replies
+- Owner and team replies carry badges: **XyDev** and **XyTeam**; team can create/edit/draft/schedule/publish posts while destructive/team/app controls stay owner-only
+- Public owner profile with banner, avatar, bio, links, manual presence, and current activity
 - Public comments appear instantly with invisible Turnstile verification, durable rate limits, and an owner-only hide/show panel
 - Real like counters persisted in the database with server-side anonymous deduplication
 - Google login protected admin control room
@@ -185,7 +186,8 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 | `/updates/[id]` | Shareable update page with comments |
 | `/feed.xml` | RSS 2.0 feed for published updates |
 | `/login` | Google owner login |
-| `/admin` | Create/edit drafts and published updates, manage media, team, and comments |
+| `/admin/*` | Focused posts/comments/apps/profile/team control-room routes |
+| `/profile` | Public owner profile, presence, activity, bio, banner, and links |
 | `/docs/ai` | Human-readable AI integration docs |
 | `/api/likes` | Public like endpoint |
 | `/api/comments` | Public comment / reply submission (goes to moderation) |

@@ -23,7 +23,7 @@ const payload = z.object({
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const identity = await requestHasAdminAccess(request);
-  if (!identity || !identity.isOwner) {
+  if (!identity) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

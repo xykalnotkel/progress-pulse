@@ -20,11 +20,22 @@ test("updates can be searched and filtered", async ({ page }) => {
   await expect(posts).toHaveCount(1);
 });
 
-test("detail metadata is canonical and contains no email payload", async ({ page }) => {
+test("detail is canonical, private, and directly interactive", async ({ page }) => {
   await page.goto("/updates/update-01");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/updates\/update-01$/);
   await expect(page.locator('meta[property="og:type"]')).toHaveAttribute("content", "article");
+  await expect(page.getByRole("heading", { name: "Tulis komentar" })).toBeVisible();
+  await expect(page.locator(".thread-bubble")).toHaveCount(2);
+  await expect(page.locator(".reply-plus")).toHaveCount(1);
   expect(await page.content()).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+});
+
+test("home profile card opens the public owner profile", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".floating-profile-card")).toBeVisible();
+  await page.locator(".floating-profile-card").click();
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 });
 
 test("RSS endpoint returns a valid channel", async ({ request }) => {

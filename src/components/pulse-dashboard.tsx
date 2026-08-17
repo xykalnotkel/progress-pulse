@@ -26,6 +26,7 @@ import { REACTIONS, REACTION_LABELS } from "@/lib/constants";
 import type { AuthorBadge, Comment, CommentReaction, Contributor, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { getVisitorId } from "@/lib/visitor-id";
+import type { PublicOwnerProfile } from "@/lib/public-profile";
 
 const HumanCheck = dynamic(() => import("@/components/human-check"), { ssr: false });
 
@@ -61,6 +62,7 @@ type Props = {
   updates: ProgressUpdate[];
   isDemo?: boolean;
   view?: View;
+  ownerProfile?: PublicOwnerProfile;
 };
 
 type WriterIdentity = { email: string; name: string; avatar: string | null; title: string | null; badge: AuthorBadge };
@@ -561,7 +563,7 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
   );
 }
 
-export default function PulseDashboard({ apps, updates, isDemo = false, view = "home" }: Props) {
+export default function PulseDashboard({ apps, updates, isDemo = false, view = "home", ownerProfile }: Props) {
   const urlActiveApp = useSyncExternalStore(subscribeUrl, getUrlApp, () => "all");
   const storedDark = useSyncExternalStore(subscribeTheme, getStoredTheme, () => true);
   const [activeAppOverride, setActiveApp] = useState<string | null>(null);
@@ -650,6 +652,11 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
         <div className="hero-sculpture">
           <ShimmerImage src="/images/xyspace-hero-3d.webp" alt="Ilustrasi abstrak 3D XySpace" className="hero-render" fill />
           <div className="sculpture-label"><span>01</span><i />IN PROGRESS</div>
+          {ownerProfile ? <Link href="/profile" className="floating-profile-card">
+            <span className="floating-profile-avatar">{ownerProfile.avatar_url ? <Image src={ownerProfile.avatar_url} alt={ownerProfile.display_name ?? "Kall"} width={42} height={42}/> : (ownerProfile.display_name ?? "K").slice(0,1)}</span>
+            <span className="floating-profile-copy"><b>{ownerProfile.display_name ?? "Kall"}</b><small>{ownerProfile.activity_text || ownerProfile.status_text || "Lihat profil"}</small></span>
+            <i className={`presence-dot presence-${ownerProfile.status_kind ?? "offline"}`}/>
+          </Link> : null}
         </div>
       </section>}
 
