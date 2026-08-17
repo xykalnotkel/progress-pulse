@@ -7,7 +7,7 @@ export const revalidate = 300;
 export const metadata: Metadata = {
   title: "XySpace Blog — Building in public",
   description: "Catatan progres aplikasi, eksperimen, dan produk yang sedang dibangun di XySpace.",
-  alternates: { canonical: "/" },
+  alternates: { canonical: "/", types: { "application/rss+xml": "/feed.xml" } },
 };
 
 export default async function Home() {

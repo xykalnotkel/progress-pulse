@@ -3,7 +3,7 @@ import PulseDashboard from "@/components/pulse-dashboard";
 import { getPublicFeed } from "@/lib/feed";
 
 export const revalidate = 300;
-export const metadata: Metadata = { title: "Updates", description: "Timeline update, preview, dan catatan pengembangan aplikasi XySpace.", alternates: { canonical: "/updates" } };
+export const metadata: Metadata = { title: "Updates", description: "Timeline update, preview, dan catatan pengembangan aplikasi XySpace.", alternates: { canonical: "/updates", types: { "application/rss+xml": "/feed.xml" } } };
 
 export default async function UpdatesPage() {
   const { apps, updates, isDemo } = await getPublicFeed();

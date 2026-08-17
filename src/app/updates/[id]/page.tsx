@@ -62,7 +62,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: update.title,
     description,
-    alternates: { canonical },
+    alternates: { canonical, types: { "application/rss+xml": "/feed.xml" } },
     openGraph: {
       type: "article",
       url: canonical,
