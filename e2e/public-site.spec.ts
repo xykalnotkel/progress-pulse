@@ -4,7 +4,8 @@ test("home renders the brand, navigation, and structured data", async ({ page })
   await page.goto("/");
   await expect(page).toHaveTitle(/XySpace Blog/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Small steps");
-  await expect(page.locator('script[type="application/ld+json"]')).toContainText("WebSite");
+  const structuredData = await page.locator('script[type="application/ld+json"]').evaluate((node) => node.textContent);
+  expect(structuredData).toContain("WebSite");
   await expect(page.locator('link[type="application/rss+xml"]')).toHaveAttribute("href", "/feed.xml");
 });
 
@@ -12,10 +13,10 @@ test("updates can be searched and filtered", async ({ page }) => {
   await page.goto("/updates");
   const posts = page.locator(".update-post");
   await expect(posts).toHaveCount(3);
-  await page.getByLabel("Cari update").fill("dashboard");
+  await page.getByLabel("Cari update").fill("cockpit");
   await expect(posts).toHaveCount(1);
   await page.getByLabel("Cari update").fill("");
-  await page.getByRole("button", { name: "Shipped" }).click();
+  await page.getByRole("button", { name: "Testing" }).click();
   await expect(posts).toHaveCount(1);
 });
 
