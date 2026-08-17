@@ -2,6 +2,7 @@ import { demoApps, demoUpdates } from "@/lib/demo-data";
 import { getSupabasePublic } from "@/lib/supabase";
 import type { Comment, CommentReaction, ProgressUpdate, Project } from "@/lib/types";
 import { REACTIONS } from "@/lib/constants";
+import { optimizeMediaList } from "@/lib/media";
 
 function isDemoMode() {
   return process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !getSupabasePublic();
@@ -83,6 +84,7 @@ async function attachStats(updates: UpdateWithStats[]) {
     const threads = buildThreads(flat, reactionsMap);
     return {
       ...update,
+      media: optimizeMediaList(update.media),
       likes_count: likesMap.get(update.id) ?? 0,
       comments: threads,
       comment_count: threads.length,

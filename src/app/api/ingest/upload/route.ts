@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasValidIngestToken } from "@/lib/auth";
 import { getCloudinary } from "@/lib/cloudinary";
+import { optimizeMediaUrl } from "@/lib/media";
 
 export const runtime = "nodejs";
 
@@ -32,6 +33,6 @@ export async function POST(request: Request) {
   const dataUri = `data:${file.type || "application/octet-stream"};base64,${buffer.toString("base64")}`;
   try {
     const uploaded = await cloudinary.uploader.upload(dataUri, { folder: `progress-pulse/${appSlug}`, resource_type: "auto" });
-    return NextResponse.json({ ok: true, url: uploaded.secure_url, publicId: uploaded.public_id, resourceType: uploaded.resource_type, width: uploaded.width, height: uploaded.height }, { status: 201 });
+    return NextResponse.json({ ok: true, url: optimizeMediaUrl(uploaded.secure_url), publicId: uploaded.public_id, resourceType: uploaded.resource_type, width: uploaded.width, height: uploaded.height }, { status: 201 });
   } catch { return NextResponse.json({ error: "Upload Cloudinary gagal." }, { status: 502 }); }
 }

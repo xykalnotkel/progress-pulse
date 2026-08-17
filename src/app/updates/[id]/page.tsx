@@ -107,6 +107,15 @@ export default async function UpdateDetailPage({ params }: PageProps) {
           <p className="detail-comments-note"><MessageCircle size={17} /><span>Komentar, balasan, dan reaksi lewat progress log; disaring moderasi dulu sebelum tampil.</span></p>
         </div>
       </article>
+      <footer className="detail-footer">
+        <div><Link href="/">XySpace Blog</Link> &nbsp;·&nbsp; <Link href="/updates">Semua update</Link></div>
+        <div className="detail-footer-legal">
+          <Link href="/terms">Syarat</Link>
+          <Link href="/privacy">Privasi</Link>
+          <Link href="/cookies">Cookie</Link>
+          <Link href="/disclaimer">Disclaimer</Link>
+        </div>
+      </footer>
     </main>
   );
 }

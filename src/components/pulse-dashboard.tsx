@@ -397,7 +397,36 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
       </section>}
 
       {view === "about" && <section className="closing" id="about"><div className="closing-orb" /><p className="eyebrow">STAY IN THE LOOP</p><h2>More soon.<br /><em>Always building.</em></h2><p>Follow the work as it takes shape, one release at a time.</p><a className="button button-primary" href="mailto:hello@example.com">Get in touch <ArrowUpRight size={16} /></a></section>}
-      <footer><Link className="brand" href="/"><img className="brand-logo" src="/images/xyspace-logo.webp" alt="" /><span>XySpace <span className="brand-blog">Blog</span></span></Link><span>© 2026 — made with intent</span><div><Link href="/">Back to home ↑</Link></div></footer>
+      <footer className="site-footer">
+        <div className="footer-grid">
+          <div className="footer-brand-col">
+            <Link className="brand" href="/"><img className="brand-logo" src="/images/xyspace-logo.webp" alt="" /><span>XySpace <span className="brand-blog">Blog</span></span></Link>
+            <p>Catatan terbuka dari proses membangun — aplikasi, keputusan, dan pelajaran di sepanjang jalan.</p>
+            <span className="footer-copyright">© 2026 XySpace. Dibuat dengan niat baik.</span>
+          </div>
+          <div className="footer-col">
+            <h4>Navigasi</h4>
+            <Link href="/">Home</Link>
+            <Link href="/updates">Updates</Link>
+            <Link href="/apps">Apps</Link>
+            <Link href="/about">About</Link>
+          </div>
+          <div className="footer-col">
+            <h4>Developer</h4>
+            <Link href="/docs/ai">AI API docs</Link>
+            <a href="/api/ingest/schema" target="_blank" rel="noreferrer">Schema JSON</a>
+            <Link href="/updates">Progress feed</Link>
+          </div>
+          <div className="footer-col">
+            <h4>Legal</h4>
+            <Link href="/terms">Syarat &amp; Ketentuan</Link>
+            <Link href="/privacy">Kebijakan Privasi</Link>
+            <Link href="/cookies">Kebijakan Cookie</Link>
+            <Link href="/disclaimer">Disclaimer</Link>
+          </div>
+        </div>
+        <div className="footer-bottom">Dibangun secara terbuka — setiap update adalah sinyal kecil ke mana arah pekerjaan.</div>
+      </footer>
 
       {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}><section className="update-modal" role="dialog" aria-modal="true" aria-label="Progress update" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={19} /></button><div className="modal-visual"><PreviewArt update={selected} /><span className={`status-pill ${statusMeta[selected.status].className}`}><i />{statusMeta[selected.status].label}</span></div><div className="modal-content"><div className="modal-app"><AppMark slug={selected.app?.slug ?? "orbit"} size="small" /> {selected.app?.name} <span /> {dateText(selected.created_at)} at {timeText(selected.created_at)} {selected.version && <><span /> {selected.version}</>}</div><h2>{selected.title}</h2><p className="modal-description">{selected.description}</p><div className="modal-actions"><button type="button" className={isLiked(selected.id) ? "reaction reaction-liked" : "reaction"} onClick={() => toggleLike(selected)}><Heart size={15} fill={isLiked(selected.id) ? "currentColor" : "none"} /> {likeCount(selected)} likes</button><span><Sparkles size={14} /> Built in public</span></div><div className="comments"><div className="comments-heading"><h3>Comments <span>{commentCount(selected)}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>{(selected.comments ?? []).map((comment) => <CommentThread key={comment.id} comment={comment} isDemo={isDemo} />)}{(comments[selected.id] ?? []).map((local, index) => <div className="comment" key={`local-${index}`}><div className="comment-avatar">{local.name.slice(0, 1)}</div><div className="comment-main"><div className="comment-head"><strong>{local.name}</strong><span>{local.when}</span></div><p>{local.body}</p></div></div>)}{commentState === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar dikirim untuk moderasi.</p>}{commentState === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}<form className="comment-form" onSubmit={submitComment}><div><input value={commentName} onChange={(event) => setCommentName(event.target.value)} maxLength={48} placeholder="Nama kamu" required /><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required /></div><button className="send-button" disabled={commentState === "sending"} type="submit">{commentState === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button></form></div></div></section></div>}
     </main>

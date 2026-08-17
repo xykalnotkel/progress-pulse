@@ -204,7 +204,16 @@ Content-Type: application/json`)}
         </section>
       </div>
 
-      <footer className="docs-footer">XySpace Blog — AI Integration API docs.</footer>
+      <footer className="docs-footer">
+        <div className="docs-footer-links">
+          <Link href="/">Beranda</Link>
+          <Link href="/terms">Syarat &amp; Ketentuan</Link>
+          <Link href="/privacy">Privasi</Link>
+          <Link href="/cookies">Cookie</Link>
+          <Link href="/disclaimer">Disclaimer</Link>
+        </div>
+        <span>XySpace Blog — AI Integration API docs.</span>
+      </footer>
     </main>
   );
 }

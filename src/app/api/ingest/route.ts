@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hasValidIngestToken } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { optimizeMediaList } from "@/lib/media";
 
 const link = z.object({ label: z.string().trim().min(1).max(30), url: z.string().url() });
 const createApp = z.object({ action: z.literal("create_app"), name: z.string().trim().min(1).max(80), slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80), tagline: z.string().trim().max(180).optional(), description: z.string().trim().max(3000).optional(), coverUrl: z.string().url().optional(), links: z.array(link).max(8).default([]), isPublished: z.boolean().default(true) });
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
   const { data: app } = await supabase.from("apps").select("id,slug").eq("slug", input.appSlug).single();
   if (!app) return NextResponse.json({ error: "Aplikasi dengan appSlug tersebut tidak ditemukan." }, { status: 404 });
-  const { data, error } = await supabase.from("progress_updates").insert({ app_id: app.id, title: input.title, description: input.description ?? null, status: input.status, version: input.version ?? null, media: input.media, is_published: input.isPublished }).select().single();
+  const { data, error } = await supabase.from("progress_updates").insert({ app_id: app.id, title: input.title, description: input.description ?? null, status: input.status, version: input.version ?? null, media: optimizeMediaList(input.media), is_published: input.isPublished }).select().single();
   if (error) return NextResponse.json({ error: "Gagal membuat update." }, { status: 400 });
   return NextResponse.json({ ok: true, update: data }, { status: 201 });
 }

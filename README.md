@@ -24,6 +24,8 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Server-controlled `created_at` timestamps
 - Cloudinary signed client upload for admin and server upload route for automation
 - An AI ingestion API that can create apps, make progress posts, upload media, and (optionally) generate a title/description draft, documented on the [AI docs page](/docs/ai)
+- Cloudinary media delivered optimized automatically: compression (`q_auto`) and WebP/AVIF (`f_auto`) baked into stored URLs
+- Legal pages: [Terms](/terms), [Privacy](/privacy), [Cookies](/cookies), [Disclaimer](/disclaimer)
 - Security headers, MIME allowlist on uploads, and a secret-scan CI job
 
 ## Security first

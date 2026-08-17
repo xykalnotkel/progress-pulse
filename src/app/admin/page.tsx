@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { optimizeMediaUrl } from "@/lib/media";
 import type { Comment, Project, UpdateStatus } from "@/lib/types";
 
 type Notice = { kind: "success" | "error"; text: string } | null;
@@ -177,7 +178,7 @@ export default function AdminPage() {
       const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/auto/upload`, { method: "POST", body: form });
       const uploaded = await response.json();
       if (!response.ok) throw new Error(uploaded.error?.message ?? "Upload Cloudinary gagal.");
-      setUpdateForm((current) => ({ ...current, media: uploaded.secure_url }));
+      setUpdateForm((current) => ({ ...current, media: optimizeMediaUrl(uploaded.secure_url) }));
       setNotice({ kind: "success", text: "Media berhasil masuk ke Cloudinary." });
     } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Upload gagal." }); }
     finally { setSaving(null); event.target.value = ""; }
