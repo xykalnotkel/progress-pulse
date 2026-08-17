@@ -1,8 +1,8 @@
 import { getSupabasePublic } from "@/lib/supabase";
-import { getBadgeForEmail } from "@/lib/auth";
+import { getBadgeForEmail, isAdminEmail } from "@/lib/auth";
 import type { AuthorBadge } from "@/lib/types";
 
-export type AdminIdentity = { email: string; badge: AuthorBadge; name: string };
+export type AdminIdentity = { email: string; badge: AuthorBadge; name: string; isOwner: boolean };
 
 function displayName(user: { email?: string; user_metadata?: Record<string, unknown> }): string {
   const fullName = user.user_metadata?.full_name;
@@ -28,5 +28,5 @@ export async function requestHasAdminAccess(request: Request): Promise<AdminIden
   const badge = getBadgeForEmail(email);
   if (!email || !badge) return false;
 
-  return { email, badge, name: displayName(data.user as { email?: string; user_metadata?: Record<string, unknown> }) };
+  return { email, badge, name: displayName(data.user as { email?: string; user_metadata?: Record<string, unknown> }), isOwner: isAdminEmail(email) };
 }

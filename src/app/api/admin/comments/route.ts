@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("comments")
-    .select("id, update_id, parent_id, author_name, author_badge, body, status, created_at, moderated_at, moderated_by, update:progress_updates(id, title, app:apps(name))")
+    .select("id, update_id, parent_id, author_name, author_badge, author_avatar, body, status, created_at, moderated_at, moderated_by, update:progress_updates(id, title, app:apps(name))")
     .eq("status", status)
     .order("created_at", { ascending: true });
 

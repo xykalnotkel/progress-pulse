@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -9,6 +10,8 @@ import {
   CloudUpload,
   ExternalLink,
   FilePlus2,
+  Eye,
+  EyeOff,
   Layers3,
   LogOut,
   MessageSquareText,
@@ -16,15 +19,16 @@ import {
   RefreshCw,
   Sparkles,
   Upload,
+  UserRound,
   WandSparkles,
-  X,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { optimizeMediaUrl } from "@/lib/media";
-import type { Comment, Project, UpdateStatus } from "@/lib/types";
+import type { AuthorBadge, Comment, Project, UpdateStatus } from "@/lib/types";
 
 type Notice = { kind: "success" | "error"; text: string } | null;
-type PendingComment = Comment & { update?: { id: string; title: string; app?: { name: string } | null } | null };
+type ManagedComment = Comment & { update?: { id: string; title: string; app?: { name: string } | null } | null };
+type Profile = { email: string; display_name: string | null; title: string | null; avatar_url: string | null; badge: AuthorBadge | null };
 
 const blankApp = { name: "", slug: "", tagline: "", description: "", website: "" };
 const blankUpdate = { appId: "", title: "", description: "", status: "building" as UpdateStatus, version: "", media: "" };
@@ -45,6 +49,11 @@ function timeAgo(value: string) {
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
 }
 
+function CommentAvatar({ comment }: { comment: ManagedComment }) {
+  if (comment.author_avatar) return <img className="comment-avatar comment-avatar-img" src={comment.author_avatar} alt="" />;
+  return <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>;
+}
+
 export default function AdminPage() {
   const [apps, setApps] = useState<Project[]>([]);
   const [appForm, setAppForm] = useState(blankApp);
@@ -54,13 +63,24 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<"app" | "update" | "upload" | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
-  const [pendingComments, setPendingComments] = useState<PendingComment[] | null>(null);
-  const [approvedComments, setApprovedComments] = useState<PendingComment[] | null>(null);
-  const [commentTab, setCommentTab] = useState<"pending" | "approved">("pending");
+
+  // Comment management
+  const [approvedComments, setApprovedComments] = useState<ManagedComment[] | null>(null);
+  const [hiddenComments, setHiddenComments] = useState<ManagedComment[] | null>(null);
+  const [commentTab, setCommentTab] = useState<"approved" | "rejected">("approved");
   const [moderatingId, setModeratingId] = useState<string | null>(null);
   const [replyOpenId, setReplyOpenId] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [replyBusy, setReplyBusy] = useState<string | null>(null);
+
+  // Profile
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileTitle, setProfileTitle] = useState("");
+  const [profileAvatar, setProfileAvatar] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   const selectedApp = useMemo(() => apps.find((app) => app.id === updateForm.appId), [apps, updateForm.appId]);
 
@@ -81,11 +101,11 @@ export default function AdminPage() {
     initialize();
   }, []);
 
-  const fetchComments = useCallback(async (status: "pending" | "approved"): Promise<PendingComment[]> => {
+  const fetchComments = useCallback(async (status: "approved" | "rejected"): Promise<ManagedComment[]> => {
     if (!token) return [];
     try {
       const response = await fetch(`/api/admin/comments?status=${status}`, { headers: { Authorization: `Bearer ${token}` } });
-      return response.ok ? ((await response.json()) as PendingComment[]) : [];
+      return response.ok ? ((await response.json()) as ManagedComment[]) : [];
     } catch {
       return [];
     }
@@ -94,21 +114,33 @@ export default function AdminPage() {
   useEffect(() => {
     if (!token) return;
     async function load() {
-      setPendingComments(await fetchComments("pending"));
+      setApprovedComments(await fetchComments("approved"));
+      setHiddenComments(await fetchComments("rejected"));
     }
     load();
   }, [fetchComments, token]);
 
   useEffect(() => {
-    if (!token || commentTab !== "approved") return;
-    async function load() {
-      setApprovedComments(await fetchComments("approved"));
+    if (!token) return;
+    async function loadProfile() {
+      try {
+        const response = await fetch("/api/admin/profile", { headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) return;
+        const data = await response.json();
+        setIsOwner(Boolean(data.isOwner));
+        setProfile(data.profile as Profile | null);
+        setProfileName(data.profile?.display_name ?? "");
+        setProfileTitle(data.profile?.title ?? "");
+        setProfileAvatar(data.profile?.avatar_url ?? "");
+      } catch {
+        // non fatal
+      }
     }
-    load();
-  }, [fetchComments, commentTab, token]);
+    loadProfile();
+  }, [token]);
 
   async function moderateComment(id: string, status: "approved" | "rejected") {
-    if (!token) return;
+    if (!token || !isOwner) return;
     setModeratingId(id);
     try {
       const response = await fetch(`/api/admin/comments/${id}`, {
@@ -118,15 +150,79 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error ?? "Gagal memoderasi komentar.");
+        throw new Error(data.error ?? "Gagal memperbarui komentar.");
       }
-      setPendingComments((list) => (list ?? []).filter((comment) => comment.id !== id));
-      if (status === "approved" && commentTab === "approved") setApprovedComments(await fetchComments("approved"));
-      setNotice({ kind: "success", text: status === "approved" ? "Komentar disetujui dan langsung tampil publik." : "Komentar ditolak." });
+      setApprovedComments(await fetchComments("approved"));
+      setHiddenComments(await fetchComments("rejected"));
+      setNotice({ kind: "success", text: status === "rejected" ? "Komentar disembunyikan dari publik." : "Komentar ditampilkan kembali." });
     } catch (error) {
-      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal memoderasi komentar." });
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal memperbarui komentar." });
     } finally {
       setModeratingId(null);
+    }
+  }
+
+  async function sendReply(commentId: string) {
+    if (!token || replyBody.trim().length < 2) return;
+    setReplyBusy(commentId);
+    try {
+      const response = await fetch(`/api/admin/comments/${commentId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: replyBody }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? "Gagal mengirim balasan.");
+      }
+      setReplyOpenId(null); setReplyBody("");
+      setNotice({ kind: "success", text: "Balasan terkirim dan langsung tampil dengan badge tim." });
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal mengirim balasan." });
+    } finally {
+      setReplyBusy(null);
+    }
+  }
+
+  async function saveProfile(event: FormEvent) {
+    event.preventDefault();
+    if (!token) return;
+    setProfileBusy(true);
+    try {
+      const response = await fetch("/api/admin/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ displayName: profileName, title: profileTitle || null, avatarUrl: profileAvatar || null }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Gagal menyimpan profil.");
+      setNotice({ kind: "success", text: "Profil tim tersimpan. Nama dan avatar ini yang tampil di balasan komentar." });
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal menyimpan profil." });
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function uploadAvatar(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file || !token) return;
+    setAvatarBusy(true);
+    try {
+      const signResponse = await fetch("/api/media/signature", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const signed = await signResponse.json();
+      if (!signResponse.ok) throw new Error(signed.error ?? "Tidak bisa menyiapkan upload.");
+      const form = new FormData();
+      form.append("file", file); form.append("api_key", signed.apiKey); form.append("timestamp", String(signed.timestamp)); form.append("signature", signed.signature); form.append("folder", "progress-pulse/avatars");
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/auto/upload`, { method: "POST", body: form });
+      const uploaded = await response.json();
+      if (!response.ok) throw new Error(uploaded.error?.message ?? "Upload avatar gagal.");
+      setProfileAvatar(optimizeMediaUrl(uploaded.secure_url));
+      setNotice({ kind: "success", text: "Avatar terupload. Jangan lupa klik Simpan profil." });
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Upload avatar gagal." });
+    } finally {
+      setAvatarBusy(false); event.target.value = "";
     }
   }
 
@@ -179,31 +275,9 @@ export default function AdminPage() {
       const uploaded = await response.json();
       if (!response.ok) throw new Error(uploaded.error?.message ?? "Upload Cloudinary gagal.");
       setUpdateForm((current) => ({ ...current, media: optimizeMediaUrl(uploaded.secure_url) }));
-      setNotice({ kind: "success", text: "Media berhasil masuk ke Cloudinary." });
+      setNotice({ kind: "success", text: "Media berhasil masuk ke Cloudinary (otomatis dikompresi & format WebP)." });
     } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Upload gagal." }); }
     finally { setSaving(null); event.target.value = ""; }
-  }
-
-  async function sendReply(commentId: string) {
-    if (!token || replyBody.trim().length < 2) return;
-    setReplyBusy(commentId);
-    try {
-      const response = await fetch(`/api/admin/comments/${commentId}/reply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ body: replyBody }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error ?? "Gagal mengirim balasan.");
-      }
-      setReplyOpenId(null); setReplyBody("");
-      setNotice({ kind: "success", text: "Balasan tim terkirim dan langsung tampil dengan badge tim." });
-    } catch (error) {
-      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal mengirim balasan." });
-    } finally {
-      setReplyBusy(null);
-    }
   }
 
   async function signOut() { const supabase = getSupabaseBrowser(); await supabase?.auth.signOut(); window.location.replace("/"); }
@@ -211,22 +285,30 @@ export default function AdminPage() {
   if (loading) return <main className="admin-page admin-loading"><RefreshCw className="spin" size={19} /> Memuat dashboard aman...</main>;
   if (!token) return <main className="admin-page admin-loading"><p>Supabase belum tersambung.</p><a href="/login">Ke halaman login</a></main>;
 
+  const activeComments = commentTab === "approved" ? approvedComments : hiddenComments;
+
   return (
     <main className="admin-page">
       <header className="admin-top">
         <Link href="/" className="admin-back"><ArrowLeft size={15} /> Lihat situs</Link>
         <div className="admin-title"><span className="admin-sphere" /> XySpace<span>.</span> / control room</div>
-        <div className="admin-user"><span>{email ?? "Admin"}</span><button onClick={signOut}><LogOut size={15} /> Keluar</button></div>
+        <div className="admin-user">
+          {profileAvatar ? <img className="admin-avatar" src={profileAvatar} alt="" /> : <span className="admin-avatar admin-avatar-fallback">{email?.slice(0, 1).toUpperCase()}</span>}
+          <span>{profile?.display_name ?? email ?? "Admin"}</span>
+          {isOwner && <span className="owner-chip">OWNER</span>}
+          <button onClick={signOut}><LogOut size={15} /> Keluar</button>
+        </div>
       </header>
 
       <div className="admin-layout">
         <aside className="admin-side">
           <div className="admin-label">CONTROL ROOM</div>
           <a className="admin-nav-active" href="#new-update"><FilePlus2 size={16} /> Post update</a>
-          <a href="#moderation"><MessageSquareText size={16} /> Moderasi komentar <span>{pendingComments?.length ?? 0}</span></a>
+          <a href="#comments"><MessageSquareText size={16} /> Kelola komentar <span>{approvedComments?.length ?? 0}</span></a>
           <a href="#new-app"><Layers3 size={16} /> Kelola aplikasi <span>{apps.length}</span></a>
+          <a href="#profile"><UserRound size={16} /> Profile tim</a>
           <a href="/docs/ai"><WandSparkles size={16} /> AI integration <ExternalLink size={13} /></a>
-          <div className="admin-tip"><Sparkles size={17} /><p><b>Tip singkat</b>Setiap post memakai waktu server secara otomatis—tidak bisa dimanipulasi oleh AI atau browser.</p></div>
+          <div className="admin-tip"><Sparkles size={17} /><p><b>Tip singkat</b>Komentar publik langsung tampil tanpa persetujuan. Sebagai owner, lo bisa menyembunyikan komentar yang kurang pantas dari panel Kelola komentar.</p></div>
         </aside>
 
         <section className="admin-content">
@@ -238,7 +320,7 @@ export default function AdminPage() {
             </div>
             <div className="admin-stats">
               <div><b>{apps.length}</b><span>apps live</span></div>
-              <div><b>{pendingComments?.length ?? 0}</b><span>pending comments</span></div>
+              <div><b>{approvedComments?.length ?? 0}</b><span>komentar aktif</span></div>
               <div><b>auto</b><span>server dates</span></div>
             </div>
           </div>
@@ -300,52 +382,26 @@ export default function AdminPage() {
             </form>
           </div>
 
-          <section className="admin-panel moderation-panel" id="moderation">
+          <section className="admin-panel moderation-panel" id="comments">
             <div className="panel-heading">
-              <div><p className="admin-kicker">PUBLIC COMMENTS</p><h2>Moderasi komentar</h2></div>
-              <span><span className="small-live" /> {commentTab === "pending" ? `${pendingComments?.length ?? 0} pending` : `${approvedComments?.length ?? 0} approved`}</span>
+              <div><p className="admin-kicker">PUBLIC COMMENTS</p><h2>Kelola komentar</h2></div>
+              <span><span className="small-live" /> tampil instan</span>
             </div>
             <div className="mod-tabs" role="tablist" aria-label="Filter komentar">
-              <button className={commentTab === "pending" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("pending")}>Menunggu <span>{pendingComments?.length ?? 0}</span></button>
-              <button className={commentTab === "approved" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("approved")}>Disetujui <span>{approvedComments?.length ?? 0}</span></button>
+              <button className={commentTab === "approved" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("approved")}>Aktif <span>{approvedComments?.length ?? 0}</span></button>
+              <button className={commentTab === "rejected" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("rejected")}>Disembunyikan <span>{hiddenComments?.length ?? 0}</span></button>
             </div>
-            {commentTab === "pending" && (pendingComments === null ? (
+            {activeComments === null ? (
               <p className="moderation-empty">Memuat komentar...</p>
-            ) : pendingComments.length === 0 ? (
-              <p className="moderation-empty">Tidak ada komentar yang menunggu moderasi. Komentar publik masuk ke sini setelah dikirim.</p>
+            ) : activeComments.length === 0 ? (
+              <p className="moderation-empty">{commentTab === "approved" ? "Belum ada komentar. Komentar publik muncul di sini otomatis — tanpa perlu disetujui." : "Tidak ada komentar yang disembunyikan."}</p>
             ) : (
               <div className="moderation-list">
-                {pendingComments.map((comment) => (
+                {activeComments.map((comment) => (
                   <div className="moderation-item" key={comment.id}>
                     <div className="moderation-body">
                       <div className="moderation-head">
-                        <span className="comment-avatar">{comment.author_name.slice(0, 1)}</span>
-                        <strong>{comment.author_name}</strong>
-                        {comment.parent_id && <span className="mod-reply-chip">balasan</span>}
-                        <span className="moderation-meta">{timeAgo(comment.created_at)}</span>
-                        <span className="moderation-target">di {comment.update?.app?.name ?? "aplikasi"} — {comment.update?.title ?? "update"}</span>
-                      </div>
-                      <p>{comment.body}</p>
-                    </div>
-                    <div className="moderation-actions">
-                      <button className="mod-approve" disabled={moderatingId === comment.id} onClick={() => moderateComment(comment.id, "approved")}><Check size={14} /> Setujui</button>
-                      <button className="mod-reject" disabled={moderatingId === comment.id} onClick={() => moderateComment(comment.id, "rejected")}><X size={14} /> Tolak</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-            {commentTab === "approved" && (approvedComments === null ? (
-              <p className="moderation-empty">Memuat komentar...</p>
-            ) : approvedComments.length === 0 ? (
-              <p className="moderation-empty">Belum ada komentar yang disetujui.</p>
-            ) : (
-              <div className="moderation-list">
-                {approvedComments.map((comment) => (
-                  <div className="moderation-item" key={comment.id}>
-                    <div className="moderation-body">
-                      <div className="moderation-head">
-                        <span className="comment-avatar">{comment.author_name.slice(0, 1)}</span>
+                        <CommentAvatar comment={comment} />
                         <strong>{comment.author_name}</strong>
                         {comment.author_badge && <span className={`comment-badge badge-${comment.author_badge.toLowerCase()}`}>{comment.author_badge}</span>}
                         {comment.parent_id && <span className="mod-reply-chip">balasan</span>}
@@ -355,7 +411,11 @@ export default function AdminPage() {
                       <p>{comment.body}</p>
                     </div>
                     <div className="moderation-actions">
-                      <button className="mod-reject" disabled={moderatingId === comment.id} onClick={() => moderateComment(comment.id, "rejected")}><X size={14} /> Tolak</button>
+                      {isOwner && (
+                        <button className={comment.status === "rejected" ? "mod-approve" : "mod-reject"} disabled={moderatingId === comment.id} onClick={() => moderateComment(comment.id, comment.status === "rejected" ? "approved" : "rejected")}>
+                          {comment.status === "rejected" ? <><Eye size={14} /> Tampilkan</> : <><EyeOff size={14} /> Sembunyikan</>}
+                        </button>
+                      )}
                       <button className="mod-reply" disabled={replyBusy === comment.id} onClick={() => { setReplyOpenId(replyOpenId === comment.id ? null : comment.id); setReplyBody(""); }}><MessageSquareText size={14} /> Balas</button>
                     </div>
                     {replyOpenId === comment.id && (
@@ -370,7 +430,27 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-            ))}
+            )}
+          </section>
+
+          <section className="admin-panel profile-panel" id="profile">
+            <div className="panel-heading">
+              <div><p className="admin-kicker">CUSTOM PROFILE</p><h2>Profile tim</h2></div>
+              <span>{isOwner ? <><span className="small-live" /> OWNER — akses penuh</> : <><span className="small-live" /> TEAM</>}</span>
+            </div>
+            <div className="profile-layout">
+              <div className="profile-avatar-block">
+                {profileAvatar ? <img className="profile-avatar-preview" src={profileAvatar} alt="" /> : <div className="profile-avatar-preview profile-avatar-fallback">{profileName.slice(0, 1) || email?.slice(0, 1)?.toUpperCase()}</div>}
+                <label className="upload-button profile-upload"><Upload size={14} /><input type="file" accept="image/*" onChange={uploadAvatar} />{avatarBusy ? "..." : "Upload avatar"}</label>
+                <small className="profile-hint">Nama & avatar ini yang tampil di balasan komentar publik.</small>
+              </div>
+              <form className="profile-form" onSubmit={saveProfile}>
+                <label>Nama tampilan<input value={profileName} onChange={(e) => setProfileName(e.target.value)} maxLength={48} placeholder="Contoh: Kall" required /></label>
+                <label>Jabatan / bio singkat<input value={profileTitle} onChange={(e) => setProfileTitle(e.target.value)} maxLength={80} placeholder="Contoh: Founder & builder" /></label>
+                <label>URL avatar (opsional)<input value={profileAvatar} onChange={(e) => setProfileAvatar(e.target.value)} placeholder="https://res.cloudinary.com/... atau upload di atas" /></label>
+                <button className="outline-submit" disabled={profileBusy} type="submit">{profileBusy ? "Menyimpan..." : <><Check size={16} /> Simpan profil</>}</button>
+              </form>
+            </div>
           </section>
 
           <section className="ai-callout">

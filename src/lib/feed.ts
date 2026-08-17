@@ -53,7 +53,7 @@ async function attachStats(updates: UpdateWithStats[]) {
 
   const commentsResult = await supabase
     .from("comments")
-    .select("id, update_id, parent_id, author_name, author_badge, body, created_at")
+    .select("id, update_id, parent_id, author_name, author_badge, author_avatar, body, created_at")
     .eq("status", "approved")
     .in("update_id", ids)
     .order("created_at", { ascending: true });

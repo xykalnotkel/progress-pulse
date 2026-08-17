@@ -134,3 +134,27 @@ for select using (true);
 drop policy if exists "Anyone can react" on public.comment_reactions;
 create policy "Anyone can react" on public.comment_reactions
 for insert with check (true);
+
+-- ============================================================
+-- Admin/team profiles (custom display name, title, avatar)
+-- ============================================================
+create table if not exists public.profiles (
+  email text primary key,
+  display_name text check (char_length(display_name) between 1 and 48),
+  title text check (char_length(title) <= 80),
+  avatar_url text,
+  badge text check (badge in ('XyDev', 'XyTeam')),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.profiles enable row level security;
+
+-- Display names/avatars are public (they appear on comment threads).
+drop policy if exists "Public can view profiles" on public.profiles;
+create policy "Public can view profiles" on public.profiles
+for select using (true);
+-- No public insert/update policies: profiles are managed only by server
+-- routes with an authenticated owner/team session.
+
+-- Admin/team replies can carry a custom avatar.
+alter table public.comments add column if not exists author_avatar text;

@@ -28,7 +28,7 @@ const sections = [
   {
     heading: "3. Cara Data Digunakan",
     paragraphs: [
-      "Data digunakan untuk: menampilkan komentar dan interaksi publik, memoderasi konten, menjaga keamanan Situs (mencegah spam dan penyalahgunaan), serta memperbaiki dan mengembangkan layanan.",
+      "Data digunakan untuk: menampilkan komentar dan interaksi publik, menyaring spam otomatis, menjaga keamanan Situs (mencegah penyalahgunaan), serta memperbaiki dan mengembangkan layanan. Owner dapat menyembunyikan komentar yang melanggar ketentuan.",
       "Kami tidak menjual data Anda kepada pihak mana pun. Kami tidak menampilkan iklan bertarget berdasarkan data pribadi.",
     ],
   },

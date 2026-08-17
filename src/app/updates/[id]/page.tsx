@@ -73,7 +73,7 @@ export default async function UpdateDetailPage({ params }: PageProps) {
           <div className="comments-heading"><h3>Komentar <span>{commentCount}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>
           {comments.length ? comments.map((comment) => (
             <div className="comment" key={comment.id}>
-              <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>
+              {comment.author_avatar ? <img className="comment-avatar comment-avatar-img" src={comment.author_avatar} alt="" /> : <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>}
               <div className="comment-main">
                 <div className="comment-head">
                   <strong>{comment.author_name}</strong>
@@ -90,7 +90,7 @@ export default async function UpdateDetailPage({ params }: PageProps) {
                 )}
                 {(comment.replies ?? []).map((reply) => (
                   <div className="comment comment-reply" key={reply.id}>
-                    <div className="comment-avatar">{reply.author_name.slice(0, 1)}</div>
+                    {reply.author_avatar ? <img className="comment-avatar comment-avatar-img" src={reply.author_avatar} alt="" /> : <div className="comment-avatar">{reply.author_name.slice(0, 1)}</div>}
                     <div className="comment-main">
                       <div className="comment-head">
                         <strong>{reply.author_name}</strong>

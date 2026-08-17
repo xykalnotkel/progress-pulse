@@ -24,7 +24,7 @@ const sections = [
     heading: "3. Konten Pengguna (Komentar, Balasan, dan Reaksi)",
     paragraphs: [
       "Anda dapat menulis komentar, balasan, dan memberikan reaksi pada halaman publik. Dengan mengirimkan konten, Anda menyatakan bahwa: konten tersebut bukan milik orang lain, tidak melanggar hukum (termasuk namun tidak terbatas pada pencemaran nama baik, ujaran kebencian, spam, atau konten melanggar hak cipta), dan tidak mengandung tautan berbahaya.",
-      "Seluruh konten pengguna melewati moderasi sebelum tampil. XySpace berhak menolak, menunda, atau menghapus konten yang melanggar ketentuan tanpa pemberitahuan. Dengan mengirimkan komentar, Anda memberikan lisensi non-eksklusif kepada XySpace untuk menyimpan, menampilkan, dan mengelola konten tersebut di dalam Situs.",
+      "Komentar tampil langsung setelah dikirim — tidak ada persetujuan manual. XySpace menerapkan penyaringan otomatis (spam dan kata terlarang) serta pembatasan laju permintaan, dan owner berhak menyembunyikan konten yang melanggar ketentuan tanpa pemberitahuan. Dengan mengirimkan komentar, Anda memberikan lisensi non-eksklusif kepada XySpace untuk menyimpan, menampilkan, dan mengelola konten tersebut di dalam Situs.",
     ],
   },
   {

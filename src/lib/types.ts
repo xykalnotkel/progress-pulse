@@ -27,6 +27,7 @@ export type Comment = {
   parent_id: string | null;
   author_name: string;
   author_badge?: AuthorBadge | null;
+  author_avatar?: string | null;
   body: string;
   status?: "pending" | "approved" | "rejected";
   created_at: string;

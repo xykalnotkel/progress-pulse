@@ -5,9 +5,13 @@ import { requestHasAdminAccess } from "@/lib/request-auth";
 
 const payload = z.object({ status: z.enum(["approved", "rejected"]) });
 
+/**
+ * Hide ("rejected") or show ("approved") a comment. Owner-only: this is the
+ * safety valve after a comment has already appeared publicly.
+ */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const moderator = await requestHasAdminAccess(request);
-  if (!moderator) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const identity = await requestHasAdminAccess(request);
+  if (!identity || !identity.isOwner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const parsed = payload.safeParse(await request.json().catch(() => null));
   const { id } = await params;
@@ -18,9 +22,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { error } = await supabase
     .from("comments")
-    .update({ status: parsed.data.status, moderated_at: new Date().toISOString(), moderated_by: moderator.email })
+    .update({ status: parsed.data.status, moderated_at: new Date().toISOString(), moderated_by: identity.email })
     .eq("id", id);
-  if (error) return NextResponse.json({ error: "Gagal memoderasi komentar." }, { status: 400 });
+  if (error) return NextResponse.json({ error: "Gagal memperbarui komentar." }, { status: 400 });
 
   return NextResponse.json({ ok: true });
 }

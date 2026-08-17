@@ -47,13 +47,6 @@ function dateText(value: string) {
   }).format(new Date(value));
 }
 
-function timeText(value: string) {
-  return new Intl.DateTimeFormat("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
 function AppMark({ slug, size = "normal" }: { slug: string; size?: "normal" | "small" }) {
   const letter = slug.slice(0, 1).toUpperCase();
   return <span className={`app-mark app-mark-${slug} ${size === "small" ? "app-mark-small" : ""}`}>{letter}</span>;
@@ -106,6 +99,13 @@ function PreviewArt({ update }: { update: ProgressUpdate }) {
 function CommentBadge({ badge }: { badge?: string | null }) {
   if (!badge) return null;
   return <span className={`comment-badge badge-${badge.toLowerCase()}`}>{badge}</span>;
+}
+
+function CommentAvatar({ comment }: { comment: Comment }) {
+  if (comment.author_avatar) {
+    return <img className="comment-avatar comment-avatar-img" src={comment.author_avatar} alt="" />;
+  }
+  return <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>;
 }
 
 function CommentReactionBar({ comment, isDemo }: { comment: Comment; isDemo: boolean }) {
@@ -198,7 +198,7 @@ function CommentReplyBox({ comment, isDemo }: { comment: Comment; isDemo: boolea
           <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required />
           <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder="Tulis balasan..." required />
           {state === "error" && <p className="comment-notice error">Belum bisa mengirim balasan. Coba lagi.</p>}
-          {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Balasan dikirim untuk moderasi.</p>}
+          {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Balasan terkirim.</p>}
           <div className="reply-actions">
             <button type="button" className="reply-cancel" onClick={() => setOpen(false)}>Batal</button>
             <button className="reply-send" disabled={state === "sending"} type="submit">{state === "sending" ? "Mengirim..." : "Kirim balasan"}</button>
@@ -212,7 +212,7 @@ function CommentReplyBox({ comment, isDemo }: { comment: Comment; isDemo: boolea
 function CommentThread({ comment, isDemo }: { comment: Comment; isDemo: boolean }) {
   return (
     <div className="comment">
-      <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>
+      <CommentAvatar comment={comment} />
       <div className="comment-main">
         <div className="comment-head">
           <strong>{comment.author_name}</strong>
@@ -221,9 +221,9 @@ function CommentThread({ comment, isDemo }: { comment: Comment; isDemo: boolean 
         </div>
         <p>{comment.body}</p>
         <CommentReactionBar comment={comment} isDemo={isDemo} />
-        {comment.replies?.map((reply) => (
+        {(comment.replies ?? []).map((reply) => (
           <div className="comment comment-reply" key={reply.id}>
-            <div className="comment-avatar">{reply.author_name.slice(0, 1)}</div>
+            <CommentAvatar comment={reply} />
             <div className="comment-main">
               <div className="comment-head">
                 <strong>{reply.author_name}</strong>
@@ -241,6 +241,110 @@ function CommentThread({ comment, isDemo }: { comment: Comment; isDemo: boolean 
   );
 }
 
+type LocalComment = { name: string; body: string; when: string };
+
+/**
+ * One full update rendered as a post on the Updates page, with the comment
+ * thread and the new-comment form inline — no popup.
+ */
+function UpdatePost({
+  update,
+  isDemo,
+  isLiked,
+  likeCount,
+  onLike,
+}: {
+  update: ProgressUpdate;
+  isDemo: boolean;
+  isLiked: boolean;
+  likeCount: number;
+  onLike: () => void;
+}) {
+  const meta = statusMeta[update.status];
+  const [localComments, setLocalComments] = useState<LocalComment[]>([]);
+  const [name, setName] = useState("");
+  const [body, setBody] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
+
+  const serverComments = update.comments ?? [];
+  const topLevelCount = serverComments.length + localComments.length;
+
+  async function submitComment(event: React.FormEvent) {
+    event.preventDefault();
+    if (name.trim().length < 2 || body.trim().length < 2) return;
+    setState("sending");
+    if (isDemo) {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      setLocalComments((list) => [...list, { name: name.trim(), body: body.trim(), when: "baru saja" }]);
+      setName(""); setBody(""); setState("success");
+      return;
+    }
+    try {
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updateId: update.id, authorName: name, body }),
+      });
+      if (!response.ok) throw new Error("Unable to send comment");
+      setLocalComments((list) => [...list, { name: name.trim(), body: body.trim(), when: "baru saja" }]);
+      setName(""); setBody(""); setState("success");
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <article className="update-post">
+      <div className="update-post-visual">
+        <PreviewArt update={update} />
+        <span className={`status-pill ${meta.className}`}><i />{meta.label}</span>
+      </div>
+      <div className="update-post-body">
+        <div className="update-post-meta">
+          <span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span>
+          <span>{dateText(update.created_at)}</span>
+          {update.version && <span className="update-version">{update.version}</span>}
+        </div>
+        <h3>{update.title}</h3>
+        <p className="update-post-description">{update.description}</p>
+        <div className="update-post-actions">
+          <button type="button" className={isLiked ? "reaction reaction-liked" : "reaction"} onClick={onLike}>
+            <Heart size={15} fill={isLiked ? "currentColor" : "none"} /> {likeCount} like{likeCount === 1 ? "" : "s"}
+          </button>
+          <a className="reaction" href={`#komentar-${update.id}`}><MessageCircle size={15} /> {topLevelCount} komentar</a>
+          <Link className="read-link" href={`/updates/${update.id}`}>Buka halaman update <ArrowUpRight size={15} /></Link>
+        </div>
+
+        <div className="post-comments" id={`komentar-${update.id}`}>
+          <div className="comments-heading">
+            <h3>Komentar <span>{topLevelCount}</span></h3>
+            <p>Keep it kind, useful, and on-topic.</p>
+          </div>
+          {serverComments.map((comment) => <CommentThread key={comment.id} comment={comment} isDemo={isDemo} />)}
+          {localComments.map((local, index) => (
+            <div className="comment" key={`local-${index}`}>
+              <div className="comment-avatar">{local.name.slice(0, 1)}</div>
+              <div className="comment-main">
+                <div className="comment-head"><strong>{local.name}</strong><span>{local.when}</span></div>
+                <p>{local.body}</p>
+              </div>
+            </div>
+          ))}
+          {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar terkirim dan langsung tampil.</p>}
+          {state === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}
+          <form className="comment-form" onSubmit={submitComment}>
+            <div>
+              <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required />
+              <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required />
+            </div>
+            <button className="send-button" disabled={state === "sending"} type="submit">{state === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button>
+          </form>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function PulseDashboard({ apps, updates, isDemo = false, view = "home" }: Props) {
   const [activeApp, setActiveApp] = useState(() => {
     if (typeof window === "undefined") return "all";
@@ -250,16 +354,11 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
     if (typeof window === "undefined") return true;
     return window.localStorage.getItem("pulse-theme") !== "light";
   });
-  const [selected, setSelected] = useState<ProgressUpdate | null>(null);
   const [likedIds, setLikedIds] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("pp-liked") ?? "[]") as string[]; } catch { return []; }
   });
   const [likeDelta, setLikeDelta] = useState<Record<string, number>>({});
-  const [comments, setComments] = useState<Record<string, { name: string; body: string; when: string }[]>>({});
-  const [commentName, setCommentName] = useState("");
-  const [commentBody, setCommentBody] = useState("");
-  const [commentState, setCommentState] = useState<"idle" | "sending" | "success" | "error">("idle");
 
   useEffect(() => window.localStorage.setItem("pulse-theme", dark ? "dark" : "light"), [dark]);
 
@@ -291,40 +390,6 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
       return next;
     });
     setLikeDelta((delta) => ({ ...delta, [update.id]: (delta[update.id] ?? 0) + 1 }));
-  }
-
-  const commentCount = (update: ProgressUpdate) => (update.comments?.length ?? 0) + (comments[update.id]?.length ?? 0);
-
-  async function submitComment(event: React.FormEvent) {
-    event.preventDefault();
-    if (!selected || commentName.trim().length < 2 || commentBody.trim().length < 2) return;
-    setCommentState("sending");
-
-    if (isDemo) {
-      await new Promise((resolve) => setTimeout(resolve, 450));
-      setComments((previous) => ({
-        ...previous,
-        [selected.id]: [...(previous[selected.id] ?? []), { name: commentName.trim(), body: commentBody.trim(), when: "baru saja" }],
-      }));
-      setCommentName("");
-      setCommentBody("");
-      setCommentState("success");
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updateId: selected.id, authorName: commentName, body: commentBody }),
-      });
-      if (!response.ok) throw new Error("Unable to send comment");
-      setCommentName("");
-      setCommentBody("");
-      setCommentState("success");
-    } catch {
-      setCommentState("error");
-    }
   }
 
   return (
@@ -360,7 +425,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
           <Link href="/updates" className="home-route-card route-updates"><span className="route-number">02</span><Sparkles size={24} /><strong>{updates.length || "Fresh"} progress notes</strong><p>Small releases, experiments, and the reasoning behind them.</p><span className="route-arrow">Read updates <ArrowRight size={15} /></span></Link>
           <Link href="/about" className="home-route-card route-about"><span className="route-number">03</span><CircleEllipsis size={24} /><strong>Built in the open</strong><p>Follow the ideas while they are still becoming real.</p><span className="route-arrow">About XySpace <ArrowRight size={15} /></span></Link>
         </div>
-        {updates.length > 0 && <div className="home-latest"><div className="home-latest-heading"><div><p className="eyebrow">LATEST SIGNAL</p><h2>From the progress log</h2></div><Link href="/updates" className="text-link">View all <ArrowRight size={15} /></Link></div><div className="home-latest-grid">{updates.slice(0, 2).map((update) => <article className="home-update" key={update.id}><button type="button" onClick={() => { setSelected(update); setCommentState("idle"); }}><PreviewArt update={update} /></button><div><span><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name} · {dateText(update.created_at)}</span><h3>{update.title}</h3><p>{update.description}</p><Link href={`/updates/${update.id}`}>Read note <ArrowUpRight size={14} /></Link></div></article>)}</div></div>}
+        {updates.length > 0 && <div className="home-latest"><div className="home-latest-heading"><div><p className="eyebrow">LATEST SIGNAL</p><h2>From the progress log</h2></div><Link href="/updates" className="text-link">View all <ArrowRight size={15} /></Link></div><div className="home-latest-grid">{updates.slice(0, 2).map((update) => <article className="home-update" key={update.id}><Link href={`/updates/${update.id}`} aria-label={`Read ${update.title}`}><PreviewArt update={update} /></Link><div><span><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name} · {dateText(update.created_at)}</span><h3>{update.title}</h3><p>{update.description}</p><Link href={`/updates/${update.id}`}>Read note <ArrowUpRight size={14} /></Link></div></article>)}</div></div>}
       </section>}
 
       {view === "apps" && <section className="app-rail" id="apps">
@@ -378,25 +443,21 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
       </section>}
 
       {view === "updates" && <section className="updates-section" id="updates">
-        <div className="updates-heading"><div><p className="eyebrow">PROGRESS LOG</p><h2>Latest from the bench</h2></div><p>Every post is a small signal of where the work is heading.</p></div>
+        <div className="updates-heading"><div><p className="eyebrow">PROGRESS LOG</p><h2>Latest from the bench</h2></div><p>Setiap post punya komentar yang tampil langsung — tanpa persetujuan.</p></div>
         <div className="filter-row" role="tablist" aria-label="Filter updates">
           <button className={activeApp === "all" ? "filter-active" : ""} onClick={() => setActiveApp("all")}>All work <span>{updates.length}</span></button>
           {apps.map((app) => <button key={app.id} className={activeApp === app.slug ? "filter-active" : ""} onClick={() => setActiveApp(app.slug)}><AppMark slug={app.slug} size="small" /> {app.name}</button>)}
         </div>
-        <div className="updates-grid">
-          {filteredUpdates.map((update, index) => {
-            const meta = statusMeta[update.status];
-            return <article className={`update-card update-card-${index + 1}`} key={update.id}>
-              <button type="button" className="update-art-button" onClick={() => { setSelected(update); setCommentState("idle"); }} aria-label={`Read ${update.title}`}><PreviewArt update={update} /><span className={`status-pill ${meta.className}`}><i />{meta.label}</span></button>
-              <div className="update-body"><div className="update-meta"><span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span><span>{dateText(update.created_at)}</span></div><h3>{update.title}</h3><p>{update.description}</p><div className="update-footer"><button type="button" className={isLiked(update.id) ? "reaction reaction-liked" : "reaction"} onClick={() => toggleLike(update)}><Heart size={15} fill={isLiked(update.id) ? "currentColor" : "none"} /> {likeCount(update)}</button><button type="button" className="reaction" onClick={() => { setSelected(update); setCommentState("idle"); }}><MessageCircle size={15} /> {update.comment_count ?? 0}</button><Link className="read-link" href={`/updates/${update.id}`}>View update <ArrowUpRight size={15} /></Link></div></div>
-            </article>;
-          })}
+        <div className="updates-list">
+          {filteredUpdates.map((update) => (
+            <UpdatePost key={update.id} update={update} isDemo={isDemo} isLiked={isLiked(update.id)} likeCount={likeCount(update)} onLike={() => toggleLike(update)} />
+          ))}
         </div>
         {filteredUpdates.length === 0 && <div className="empty-feed">Nothing in this lane just yet.</div>}
-        <div className="load-more"><button type="button">Load earlier updates <ArrowRight size={16} /></button></div>
       </section>}
 
       {view === "about" && <section className="closing" id="about"><div className="closing-orb" /><p className="eyebrow">STAY IN THE LOOP</p><h2>More soon.<br /><em>Always building.</em></h2><p>Follow the work as it takes shape, one release at a time.</p><a className="button button-primary" href="mailto:hello@example.com">Get in touch <ArrowUpRight size={16} /></a></section>}
+
       <footer className="site-footer">
         <div className="footer-grid">
           <div className="footer-brand-col">
@@ -427,8 +488,6 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
         </div>
         <div className="footer-bottom">Dibangun secara terbuka — setiap update adalah sinyal kecil ke mana arah pekerjaan.</div>
       </footer>
-
-      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}><section className="update-modal" role="dialog" aria-modal="true" aria-label="Progress update" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={19} /></button><div className="modal-visual"><PreviewArt update={selected} /><span className={`status-pill ${statusMeta[selected.status].className}`}><i />{statusMeta[selected.status].label}</span></div><div className="modal-content"><div className="modal-app"><AppMark slug={selected.app?.slug ?? "orbit"} size="small" /> {selected.app?.name} <span /> {dateText(selected.created_at)} at {timeText(selected.created_at)} {selected.version && <><span /> {selected.version}</>}</div><h2>{selected.title}</h2><p className="modal-description">{selected.description}</p><div className="modal-actions"><button type="button" className={isLiked(selected.id) ? "reaction reaction-liked" : "reaction"} onClick={() => toggleLike(selected)}><Heart size={15} fill={isLiked(selected.id) ? "currentColor" : "none"} /> {likeCount(selected)} likes</button><span><Sparkles size={14} /> Built in public</span></div><div className="comments"><div className="comments-heading"><h3>Comments <span>{commentCount(selected)}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>{(selected.comments ?? []).map((comment) => <CommentThread key={comment.id} comment={comment} isDemo={isDemo} />)}{(comments[selected.id] ?? []).map((local, index) => <div className="comment" key={`local-${index}`}><div className="comment-avatar">{local.name.slice(0, 1)}</div><div className="comment-main"><div className="comment-head"><strong>{local.name}</strong><span>{local.when}</span></div><p>{local.body}</p></div></div>)}{commentState === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar dikirim untuk moderasi.</p>}{commentState === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}<form className="comment-form" onSubmit={submitComment}><div><input value={commentName} onChange={(event) => setCommentName(event.target.value)} maxLength={48} placeholder="Nama kamu" required /><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required /></div><button className="send-button" disabled={commentState === "sending"} type="submit">{commentState === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button></form></div></div></section></div>}
     </main>
   );
 }

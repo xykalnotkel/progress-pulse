@@ -42,13 +42,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Komentar yang dibalas tidak ditemukan." }, { status: 404 });
   }
 
+  // Comments appear immediately: no manual approval step. The spam filter
+  // above and the rate limiter are the automated guards; the owner can hide
+  // an abusive comment later from the control room.
   const { error } = await supabase.from("comments").insert({
     update_id: parsed.data.updateId,
     parent_id: parsed.data.parentId ?? null,
     author_name: parsed.data.authorName,
     body: parsed.data.body,
-    status: "pending",
+    status: "approved",
   });
   if (error) return NextResponse.json({ error: "Gagal menyimpan komentar." }, { status: 500 });
-  return NextResponse.json({ ok: true, moderation: "pending" }, { status: 201 });
+  return NextResponse.json({ ok: true }, { status: 201 });
 }

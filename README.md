@@ -18,7 +18,7 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Public timeline with progress status, real Cloudinary media, real likes, and threaded comments
 - Comment threads: visitors can reply, and react with "Membantu / Setuju / Terima kasih"
 - Owner and team replies carry badges: **XyDev** (owner) and **XyTeam** (collaborators)
-- Public comments are placed in a **pending** moderation state before appearing, with an approve/reject/reply panel inside the admin control room
+- Public comments appear instantly (no manual approval), with an owner-only hide/show panel and team replies inside the admin control room
 - Real like counters persisted in the database (additive only, one per browser)
 - Google login protected admin control room
 - Server-controlled `created_at` timestamps
@@ -153,15 +153,16 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 
 ## Public comments, replies and reactions
 
-- Public visitors can submit a name and comment. The API saves it as `pending`; it is not publicly visible yet.
-- Anyone can reply to a comment (also `pending` until approved) and react with **Membantu**, **Setuju**, or **Terima kasih** (additive, one per browser).
-- Approved comments are served with the public feed as threads, shown on update cards, the detail pages, and the shareable update URLs.
-- Owner replies (badge **XyDev**) and collaborator replies (badge **XyTeam**) are approved instantly; configure collaborators with `TEAM_EMAILS`.
+- Public visitors can submit a name and comment. **Comments appear instantly** — no manual approval step. Automated guards: spam-word filter and a rate limiter.
+- Anyone can reply to a comment and react with **Membantu**, **Setuju**, or **Terima kasih** (additive, one per browser).
+- Comment threads are served with the public feed, shown inline on the Updates page, the detail pages, and the shareable update URLs.
+- Owner replies (badge **XyDev**) and collaborator replies (badge **XyTeam**) appear instantly; configure collaborators with `TEAM_EMAILS`.
+- Owner and team can customize their profile (display name, title, avatar) from the control room; the profile is shown on their replies.
+- The owner (top admin) can hide/show any comment from the control room — the safety valve after a comment has appeared publicly.
 - Likes are stored in a `likes` table with row level security: anyone may count and add, no one may remove. The UI remembers each browser so one like per visitor.
-- Approve/reject/reply from the admin control room (`/admin` -> Moderasi komentar) or with `PATCH /api/admin/comments/:id` from an authenticated owner session.
 - The included rate limiter is a lightweight in-memory guard for development. Before a high-traffic public launch, add Cloudflare Turnstile and provider-level rate limiting / WAF rules.
 
-> Existing projects: run `supabase/migrations/001_likes.sql` and `supabase/migrations/002_comment_threads_and_reactions.sql` in the Supabase SQL Editor. Fresh setups get everything from `supabase/schema.sql`.
+> Existing projects: run `supabase/migrations/001_likes.sql`, `supabase/migrations/002_comment_threads_and_reactions.sql`, and `supabase/migrations/003_profiles_and_avatars.sql` in the Supabase SQL Editor. Fresh setups get everything from `supabase/schema.sql`.
 
 ## Deploying to Vercel
 
