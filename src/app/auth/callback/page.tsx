@@ -9,11 +9,44 @@ export default function AuthCallback() {
   useEffect(() => {
     async function complete() {
       const supabase = getSupabaseBrowser();
-      const code = new URLSearchParams(window.location.search).get("code");
-      if (!supabase || !code) { window.location.replace("/login?error=setup"); return; }
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) { setStatus("Login gagal. Silakan coba lagi."); return; }
-      window.location.replace("/admin");
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      const providerError = url.searchParams.get("error") || url.searchParams.get("error_description");
+
+      if (!supabase) {
+        setStatus("Konfigurasi Supabase belum tersedia. Kembali ke login...");
+        window.setTimeout(() => window.location.replace("/login?error=setup"), 1400);
+        return;
+      }
+      if (providerError) {
+        setStatus("Google menolak atau membatalkan login. Kembali ke login...");
+        window.setTimeout(() => window.location.replace("/login?error=oauth"), 1400);
+        return;
+      }
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          setStatus("Sesi Google tidak dapat dibuat. Kembali ke login...");
+          window.setTimeout(() => window.location.replace("/login?error=callback"), 1400);
+          return;
+        }
+        window.location.replace("/admin");
+        return;
+      }
+
+      // Fallback for an implicit OAuth response. PKCE is explicitly configured,
+      // but this keeps login resilient if an older provider response is returned.
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const accessToken = hash.get("access_token");
+      const refreshToken = hash.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        if (!error) { window.location.replace("/admin"); return; }
+      }
+
+      setStatus("Kode callback tidak ditemukan. Periksa Site URL dan Redirect URL Supabase.");
+      window.setTimeout(() => window.location.replace("/login?error=callback"), 1800);
     }
     complete();
   }, []);

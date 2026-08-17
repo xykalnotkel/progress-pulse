@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   creator: "XySpace",
   publisher: "XySpace",
   alternates: { canonical: "/" },
-  icons: { icon: "/icon.svg", shortcut: "/icon.svg", apple: "/icon.svg" },
+  icons: { icon: [{ url: "/icon.png", type: "image/png", sizes: "512x512" }, { url: "/favicon.ico", type: "image/x-icon" }], shortcut: "/favicon.ico", apple: "/icon.png" },
   manifest: "/manifest.webmanifest",
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
   openGraph: {
