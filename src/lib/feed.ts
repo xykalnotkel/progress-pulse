@@ -1,6 +1,7 @@
 import { demoApps, demoUpdates } from "@/lib/demo-data";
 import { getSupabasePublic } from "@/lib/supabase";
-import type { Comment, ProgressUpdate, Project } from "@/lib/types";
+import type { Comment, CommentReaction, ProgressUpdate, Project } from "@/lib/types";
+import { REACTIONS } from "@/lib/constants";
 
 function isDemoMode() {
   return process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !getSupabasePublic();
@@ -8,9 +9,29 @@ function isDemoMode() {
 
 type UpdateWithStats = ProgressUpdate & { comments?: Comment[] };
 
+/** Nest flat approved comments into one level of threads and attach reaction counts. */
+function buildThreads(comments: Comment[], reactionsMap: Map<string, Partial<Record<CommentReaction, number>>>): Comment[] {
+  const byParent = new Map<string | null, Comment[]>();
+  for (const comment of comments) {
+    const key = comment.parent_id;
+    const list = byParent.get(key) ?? [];
+    list.push(comment);
+    byParent.set(key, list);
+  }
+  const topLevel = byParent.get(null) ?? [];
+  return topLevel.map((comment) => ({
+    ...comment,
+    reactions: reactionsMap.get(comment.id) ?? {},
+    replies: (byParent.get(comment.id) ?? []).map((reply) => ({
+      ...reply,
+      reactions: reactionsMap.get(reply.id) ?? {},
+    })),
+  }));
+}
+
 /**
- * Attach real like counts and approved comments to a list of updates.
- * Uses a single aggregate query for likes and one filtered query for comments.
+ * Attach real like counts, approved comment threads and comment reaction
+ * counts to a list of updates.
  */
 async function attachStats(updates: UpdateWithStats[]) {
   const supabase = getSupabasePublic();
@@ -31,24 +52,42 @@ async function attachStats(updates: UpdateWithStats[]) {
 
   const commentsResult = await supabase
     .from("comments")
-    .select("id, update_id, author_name, body, created_at")
+    .select("id, update_id, parent_id, author_name, author_badge, body, created_at")
     .eq("status", "approved")
     .in("update_id", ids)
     .order("created_at", { ascending: true });
 
-  const commentsMap = new Map<string, Comment[]>();
+  const commentsByUpdate = new Map<string, Comment[]>();
   for (const comment of (commentsResult.data ?? []) as Comment[]) {
-    const list = commentsMap.get(comment.update_id) ?? [];
+    const list = commentsByUpdate.get(comment.update_id) ?? [];
     list.push(comment);
-    commentsMap.set(comment.update_id, list);
+    commentsByUpdate.set(comment.update_id, list);
   }
 
-  return updates.map((update) => ({
-    ...update,
-    likes_count: likesMap.get(update.id) ?? 0,
-    comments: commentsMap.get(update.id) ?? [],
-    comment_count: (commentsMap.get(update.id) ?? []).length,
-  }));
+  const allCommentIds = (commentsResult.data ?? []).map((comment: Comment) => comment.id);
+  const reactionsMap = new Map<string, Partial<Record<CommentReaction, number>>>();
+  if (allCommentIds.length) {
+    const reactionsResult = await supabase
+      .from("comment_reactions")
+      .select("comment_id, reaction")
+      .in("comment_id", allCommentIds);
+    for (const row of reactionsResult.data ?? []) {
+      const counts = reactionsMap.get(row.comment_id) ?? {};
+      counts[row.reaction as CommentReaction] = (counts[row.reaction as CommentReaction] ?? 0) + 1;
+      reactionsMap.set(row.comment_id, counts);
+    }
+  }
+
+  return updates.map((update) => {
+    const flat = commentsByUpdate.get(update.id) ?? [];
+    const threads = buildThreads(flat, reactionsMap);
+    return {
+      ...update,
+      likes_count: likesMap.get(update.id) ?? 0,
+      comments: threads,
+      comment_count: threads.length,
+    };
+  });
 }
 
 export async function getPublicUpdateById(id: string) {
@@ -91,3 +130,5 @@ export async function getPublicFeed() {
     isDemo: false,
   };
 }
+
+export { REACTIONS };

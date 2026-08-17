@@ -15,13 +15,15 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 
 - Glossy purple / black / white visual system with dark and light modes
 - Multiple apps, each with its own external link and slug
-- Public timeline with progress status, real Cloudinary media, real likes, and comments
-- Public comments are placed in a **pending** moderation state before appearing, with an approve/reject panel inside the admin control room
+- Public timeline with progress status, real Cloudinary media, real likes, and threaded comments
+- Comment threads: visitors can reply, and react with "Membantu / Setuju / Terima kasih"
+- Owner and team replies carry badges: **XyDev** (owner) and **XyTeam** (collaborators)
+- Public comments are placed in a **pending** moderation state before appearing, with an approve/reject/reply panel inside the admin control room
 - Real like counters persisted in the database (additive only, one per browser)
 - Google login protected admin control room
 - Server-controlled `created_at` timestamps
 - Cloudinary signed client upload for admin and server upload route for automation
-- An AI ingestion API that can create apps, make progress posts, upload media, and (optionally) generate a title/description draft
+- An AI ingestion API that can create apps, make progress posts, upload media, and (optionally) generate a title/description draft, documented on the [AI docs page](/docs/ai)
 - Security headers, MIME allowlist on uploads, and a secret-scan CI job
 
 ## Security first
@@ -52,7 +54,7 @@ Demo mode is active when `NEXT_PUBLIC_DEMO_MODE=true` (or Supabase variables are
    - Redirect URL: `https://YOUR-DOMAIN/auth/callback`
    - Local redirect: `http://localhost:3000/auth/callback`
 5. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` / Vercel Environment Variables.
-6. Set `ADMIN_EMAIL` to the Google email that owns the dashboard. API write actions refuse every other Google account.
+6. Set `ADMIN_EMAIL` to the Google email that owns the dashboard (comments get the **XyDev** badge). Optionally set `TEAM_EMAILS` (comma separated) to let collaborators reply with the **XyTeam** badge. API write actions refuse every other Google account.
 
 > Google OAuth needs both a client ID **and a client secret** configured in Supabase. A client ID alone is not enough for login.
 
@@ -76,7 +78,7 @@ You may optionally set `OPENAI_API_KEY` and `OPENAI_MODEL` to enable the `draft_
 
 ## AI API
 
-The machine-readable guide is available at:
+Full documentation lives on the **[/docs/ai](/docs/ai)** page (payload schemas, curl examples, error codes). The machine-readable guide is available at:
 
 ```text
 GET /api/ingest/schema
@@ -147,15 +149,17 @@ curl -X POST https://YOUR-DOMAIN/api/ingest \
 
 This returns a JSON draft with `title`, `description`, `status`, and optional `version`; you can review it or send it back using `create_update`.
 
-## Public comments and likes
+## Public comments, replies and reactions
 
 - Public visitors can submit a name and comment. The API saves it as `pending`; it is not publicly visible yet.
-- Approved comments are served with the public feed and shown on update cards, the detail pages, and the shareable update URLs.
+- Anyone can reply to a comment (also `pending` until approved) and react with **Membantu**, **Setuju**, or **Terima kasih** (additive, one per browser).
+- Approved comments are served with the public feed as threads, shown on update cards, the detail pages, and the shareable update URLs.
+- Owner replies (badge **XyDev**) and collaborator replies (badge **XyTeam**) are approved instantly; configure collaborators with `TEAM_EMAILS`.
 - Likes are stored in a `likes` table with row level security: anyone may count and add, no one may remove. The UI remembers each browser so one like per visitor.
-- Approve/reject from the admin control room (`/admin` -> Moderasi komentar) or with `PATCH /api/admin/comments/:id` from an authenticated owner session.
+- Approve/reject/reply from the admin control room (`/admin` -> Moderasi komentar) or with `PATCH /api/admin/comments/:id` from an authenticated owner session.
 - The included rate limiter is a lightweight in-memory guard for development. Before a high-traffic public launch, add Cloudflare Turnstile and provider-level rate limiting / WAF rules.
 
-> Existing projects: run `supabase/migrations/001_likes.sql` in the Supabase SQL Editor once to add the `likes` table. Fresh setups get everything from `supabase/schema.sql`.
+> Existing projects: run `supabase/migrations/001_likes.sql` and `supabase/migrations/002_comment_threads_and_reactions.sql` in the Supabase SQL Editor. Fresh setups get everything from `supabase/schema.sql`.
 
 ## Deploying to Vercel
 
@@ -174,9 +178,12 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 | `/updates/[id]` | Shareable update page with comments |
 | `/login` | Google owner login |
 | `/admin` | Add apps, Cloudinary media, updates, and moderate comments |
+| `/docs/ai` | Human-readable AI integration docs |
 | `/api/likes` | Public like endpoint |
-| `/api/comments` | Public comment submission (goes to moderation) |
-| `/api/admin/comments` | Owner-only list of pending comments |
+| `/api/comments` | Public comment / reply submission (goes to moderation) |
+| `/api/comment-reactions` | Public comment reaction endpoint |
+| `/api/admin/comments` | Owner-only list of pending/approved comments |
+| `/api/admin/comments/[id]/reply` | Owner/team reply with badge |
 | `/api/ingest/schema` | AI API guide |
 | `/api/ingest` | Secure AI action endpoint |
 | `/api/ingest/upload` | Secure AI media upload endpoint |

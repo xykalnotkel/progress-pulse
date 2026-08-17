@@ -20,7 +20,8 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import type { Comment, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
+import { REACTIONS, REACTION_LABELS } from "@/lib/constants";
+import type { Comment, CommentReaction, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
 
 type View = "home" | "apps" | "updates" | "about";
 
@@ -102,6 +103,144 @@ function PreviewArt({ update }: { update: ProgressUpdate }) {
   );
 }
 
+function CommentBadge({ badge }: { badge?: string | null }) {
+  if (!badge) return null;
+  return <span className={`comment-badge badge-${badge.toLowerCase()}`}>{badge}</span>;
+}
+
+function CommentReactionBar({ comment, isDemo }: { comment: Comment; isDemo: boolean }) {
+  const [delta, setDelta] = useState<Partial<Record<CommentReaction, number>>>({});
+  const [done, setDone] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem("pp-reacted") ?? "[]") as string[]; } catch { return []; }
+  });
+
+  async function react(reaction: CommentReaction) {
+    const key = `${comment.id}:${reaction}`;
+    if (done.includes(key)) return;
+    if (!isDemo) {
+      try {
+        const response = await fetch("/api/comment-reactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ commentId: comment.id, reaction }),
+        });
+        if (!response.ok) return;
+      } catch {
+        return;
+      }
+    }
+    setDone((list) => {
+      const next = [...list, key];
+      window.localStorage.setItem("pp-reacted", JSON.stringify(next));
+      return next;
+    });
+    setDelta((current) => ({ ...current, [reaction]: (current[reaction] ?? 0) + 1 }));
+  }
+
+  return (
+    <div className="reaction-row">
+      {REACTIONS.map((reaction) => {
+        const count = (comment.reactions?.[reaction] ?? 0) + (delta[reaction] ?? 0);
+        const active = done.includes(`${comment.id}:${reaction}`);
+        return (
+          <button
+            type="button"
+            key={reaction}
+            className={`react-chip${active ? " react-chip-active" : ""}`}
+            onClick={() => react(reaction)}
+            aria-pressed={active}
+          >
+            {REACTION_LABELS[reaction]}
+            {count > 0 && <b>{count}</b>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CommentReplyBox({ comment, isDemo }: { comment: Comment; isDemo: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [body, setBody] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (body.trim().length < 2 || name.trim().length < 2) return;
+    setState("sending");
+    if (isDemo) {
+      await new Promise((resolve) => setTimeout(resolve, 450));
+      setOpen(false); setName(""); setBody(""); setState("success");
+      return;
+    }
+    try {
+      const response = await fetch("/api/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updateId: comment.update_id, parentId: comment.id, authorName: name, body }),
+      });
+      if (!response.ok) throw new Error("Unable to send reply");
+      setOpen(false); setName(""); setBody(""); setState("success");
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="comment-reply-link" onClick={() => setOpen((value) => !value)}>
+        {open ? <X size={11} /> : <MessageCircle size={11} />} Balas
+      </button>
+      {open && (
+        <form className="reply-form" onSubmit={submit}>
+          <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required />
+          <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder="Tulis balasan..." required />
+          {state === "error" && <p className="comment-notice error">Belum bisa mengirim balasan. Coba lagi.</p>}
+          {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Balasan dikirim untuk moderasi.</p>}
+          <div className="reply-actions">
+            <button type="button" className="reply-cancel" onClick={() => setOpen(false)}>Batal</button>
+            <button className="reply-send" disabled={state === "sending"} type="submit">{state === "sending" ? "Mengirim..." : "Kirim balasan"}</button>
+          </div>
+        </form>
+      )}
+    </>
+  );
+}
+
+function CommentThread({ comment, isDemo }: { comment: Comment; isDemo: boolean }) {
+  return (
+    <div className="comment">
+      <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>
+      <div className="comment-main">
+        <div className="comment-head">
+          <strong>{comment.author_name}</strong>
+          <CommentBadge badge={comment.author_badge} />
+          <span>{dateText(comment.created_at)}</span>
+        </div>
+        <p>{comment.body}</p>
+        <CommentReactionBar comment={comment} isDemo={isDemo} />
+        {comment.replies?.map((reply) => (
+          <div className="comment comment-reply" key={reply.id}>
+            <div className="comment-avatar">{reply.author_name.slice(0, 1)}</div>
+            <div className="comment-main">
+              <div className="comment-head">
+                <strong>{reply.author_name}</strong>
+                <CommentBadge badge={reply.author_badge} />
+                <span>{dateText(reply.created_at)}</span>
+              </div>
+              <p>{reply.body}</p>
+              <CommentReactionBar comment={reply} isDemo={isDemo} />
+            </div>
+          </div>
+        ))}
+        <CommentReplyBox comment={comment} isDemo={isDemo} />
+      </div>
+    </div>
+  );
+}
+
 export default function PulseDashboard({ apps, updates, isDemo = false, view = "home" }: Props) {
   const [activeApp, setActiveApp] = useState(() => {
     if (typeof window === "undefined") return "all";
@@ -154,9 +293,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
     setLikeDelta((delta) => ({ ...delta, [update.id]: (delta[update.id] ?? 0) + 1 }));
   }
 
-  const toDisplayComment = (comment: Comment) => ({ name: comment.author_name, body: comment.body, when: dateText(comment.created_at) });
-  const commentList = (update: ProgressUpdate) => [...(update.comments ?? []).map(toDisplayComment), ...(comments[update.id] ?? [])];
-  const commentCount = (update: ProgressUpdate) => commentList(update).length;
+  const commentCount = (update: ProgressUpdate) => (update.comments?.length ?? 0) + (comments[update.id]?.length ?? 0);
 
   async function submitComment(event: React.FormEvent) {
     event.preventDefault();
@@ -262,7 +399,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
       {view === "about" && <section className="closing" id="about"><div className="closing-orb" /><p className="eyebrow">STAY IN THE LOOP</p><h2>More soon.<br /><em>Always building.</em></h2><p>Follow the work as it takes shape, one release at a time.</p><a className="button button-primary" href="mailto:hello@example.com">Get in touch <ArrowUpRight size={16} /></a></section>}
       <footer><Link className="brand" href="/"><img className="brand-logo" src="/images/xyspace-logo.webp" alt="" /><span>XySpace <span className="brand-blog">Blog</span></span></Link><span>© 2026 — made with intent</span><div><Link href="/">Back to home ↑</Link></div></footer>
 
-      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}><section className="update-modal" role="dialog" aria-modal="true" aria-label="Progress update" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={19} /></button><div className="modal-visual"><PreviewArt update={selected} /><span className={`status-pill ${statusMeta[selected.status].className}`}><i />{statusMeta[selected.status].label}</span></div><div className="modal-content"><div className="modal-app"><AppMark slug={selected.app?.slug ?? "orbit"} size="small" /> {selected.app?.name} <span /> {dateText(selected.created_at)} at {timeText(selected.created_at)} {selected.version && <><span /> {selected.version}</>}</div><h2>{selected.title}</h2><p className="modal-description">{selected.description}</p><div className="modal-actions"><button type="button" className={isLiked(selected.id) ? "reaction reaction-liked" : "reaction"} onClick={() => toggleLike(selected)}><Heart size={15} fill={isLiked(selected.id) ? "currentColor" : "none"} /> {likeCount(selected)} likes</button><span><Sparkles size={14} /> Built in public</span></div><div className="comments"><div className="comments-heading"><h3>Comments <span>{commentCount(selected)}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>{commentList(selected).map((comment, index) => <div className="comment" key={`${comment.name}-${index}`}><div className="comment-avatar">{comment.name.slice(0, 1)}</div><div><div><strong>{comment.name}</strong><span>{comment.when}</span></div><p>{comment.body}</p></div></div>)}{commentState === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar dikirim untuk moderasi.</p>}{commentState === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}<form className="comment-form" onSubmit={submitComment}><div><input value={commentName} onChange={(event) => setCommentName(event.target.value)} maxLength={48} placeholder="Nama kamu" required /><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required /></div><button className="send-button" disabled={commentState === "sending"} type="submit">{commentState === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button></form></div></div></section></div>}
+      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}><section className="update-modal" role="dialog" aria-modal="true" aria-label="Progress update" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={19} /></button><div className="modal-visual"><PreviewArt update={selected} /><span className={`status-pill ${statusMeta[selected.status].className}`}><i />{statusMeta[selected.status].label}</span></div><div className="modal-content"><div className="modal-app"><AppMark slug={selected.app?.slug ?? "orbit"} size="small" /> {selected.app?.name} <span /> {dateText(selected.created_at)} at {timeText(selected.created_at)} {selected.version && <><span /> {selected.version}</>}</div><h2>{selected.title}</h2><p className="modal-description">{selected.description}</p><div className="modal-actions"><button type="button" className={isLiked(selected.id) ? "reaction reaction-liked" : "reaction"} onClick={() => toggleLike(selected)}><Heart size={15} fill={isLiked(selected.id) ? "currentColor" : "none"} /> {likeCount(selected)} likes</button><span><Sparkles size={14} /> Built in public</span></div><div className="comments"><div className="comments-heading"><h3>Comments <span>{commentCount(selected)}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>{(selected.comments ?? []).map((comment) => <CommentThread key={comment.id} comment={comment} isDemo={isDemo} />)}{(comments[selected.id] ?? []).map((local, index) => <div className="comment" key={`local-${index}`}><div className="comment-avatar">{local.name.slice(0, 1)}</div><div className="comment-main"><div className="comment-head"><strong>{local.name}</strong><span>{local.when}</span></div><p>{local.body}</p></div></div>)}{commentState === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar dikirim untuk moderasi.</p>}{commentState === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}<form className="comment-form" onSubmit={submitComment}><div><input value={commentName} onChange={(event) => setCommentName(event.target.value)} maxLength={48} placeholder="Nama kamu" required /><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required /></div><button className="send-button" disabled={commentState === "sending"} type="submit">{commentState === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button></form></div></div></section></div>}
     </main>
   );
 }

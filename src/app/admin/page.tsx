@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -54,7 +54,12 @@ export default function AdminPage() {
   const [saving, setSaving] = useState<"app" | "update" | "upload" | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [pendingComments, setPendingComments] = useState<PendingComment[] | null>(null);
+  const [approvedComments, setApprovedComments] = useState<PendingComment[] | null>(null);
+  const [commentTab, setCommentTab] = useState<"pending" | "approved">("pending");
   const [moderatingId, setModeratingId] = useState<string | null>(null);
+  const [replyOpenId, setReplyOpenId] = useState<string | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [replyBusy, setReplyBusy] = useState<string | null>(null);
 
   const selectedApp = useMemo(() => apps.find((app) => app.id === updateForm.appId), [apps, updateForm.appId]);
 
@@ -75,19 +80,31 @@ export default function AdminPage() {
     initialize();
   }, []);
 
+  const fetchComments = useCallback(async (status: "pending" | "approved"): Promise<PendingComment[]> => {
+    if (!token) return [];
+    try {
+      const response = await fetch(`/api/admin/comments?status=${status}`, { headers: { Authorization: `Bearer ${token}` } });
+      return response.ok ? ((await response.json()) as PendingComment[]) : [];
+    } catch {
+      return [];
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!token) return;
-    async function fetchPending() {
-      try {
-        const response = await fetch("/api/admin/comments?status=pending", { headers: { Authorization: `Bearer ${token}` } });
-        setPendingComments(response.ok ? ((await response.json()) as PendingComment[]) : []);
-      } catch {
-        setPendingComments([]);
-      }
+    async function load() {
+      setPendingComments(await fetchComments("pending"));
     }
-    fetchPending();
-     
-  }, [token]);
+    load();
+  }, [fetchComments, token]);
+
+  useEffect(() => {
+    if (!token || commentTab !== "approved") return;
+    async function load() {
+      setApprovedComments(await fetchComments("approved"));
+    }
+    load();
+  }, [fetchComments, commentTab, token]);
 
   async function moderateComment(id: string, status: "approved" | "rejected") {
     if (!token) return;
@@ -103,6 +120,7 @@ export default function AdminPage() {
         throw new Error(data.error ?? "Gagal memoderasi komentar.");
       }
       setPendingComments((list) => (list ?? []).filter((comment) => comment.id !== id));
+      if (status === "approved" && commentTab === "approved") setApprovedComments(await fetchComments("approved"));
       setNotice({ kind: "success", text: status === "approved" ? "Komentar disetujui dan langsung tampil publik." : "Komentar ditolak." });
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal memoderasi komentar." });
@@ -165,6 +183,28 @@ export default function AdminPage() {
     finally { setSaving(null); event.target.value = ""; }
   }
 
+  async function sendReply(commentId: string) {
+    if (!token || replyBody.trim().length < 2) return;
+    setReplyBusy(commentId);
+    try {
+      const response = await fetch(`/api/admin/comments/${commentId}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ body: replyBody }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error ?? "Gagal mengirim balasan.");
+      }
+      setReplyOpenId(null); setReplyBody("");
+      setNotice({ kind: "success", text: "Balasan tim terkirim dan langsung tampil dengan badge tim." });
+    } catch (error) {
+      setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal mengirim balasan." });
+    } finally {
+      setReplyBusy(null);
+    }
+  }
+
   async function signOut() { const supabase = getSupabaseBrowser(); await supabase?.auth.signOut(); window.location.replace("/"); }
 
   if (loading) return <main className="admin-page admin-loading"><RefreshCw className="spin" size={19} /> Memuat dashboard aman...</main>;
@@ -184,7 +224,7 @@ export default function AdminPage() {
           <a className="admin-nav-active" href="#new-update"><FilePlus2 size={16} /> Post update</a>
           <a href="#moderation"><MessageSquareText size={16} /> Moderasi komentar <span>{pendingComments?.length ?? 0}</span></a>
           <a href="#new-app"><Layers3 size={16} /> Kelola aplikasi <span>{apps.length}</span></a>
-          <a href="/api/ingest/schema" target="_blank"><WandSparkles size={16} /> AI integration <ExternalLink size={13} /></a>
+          <a href="/docs/ai"><WandSparkles size={16} /> AI integration <ExternalLink size={13} /></a>
           <div className="admin-tip"><Sparkles size={17} /><p><b>Tip singkat</b>Setiap post memakai waktu server secara otomatis—tidak bisa dimanipulasi oleh AI atau browser.</p></div>
         </aside>
 
@@ -262,9 +302,13 @@ export default function AdminPage() {
           <section className="admin-panel moderation-panel" id="moderation">
             <div className="panel-heading">
               <div><p className="admin-kicker">PUBLIC COMMENTS</p><h2>Moderasi komentar</h2></div>
-              <span><span className="small-live" /> {pendingComments?.length ?? 0} pending</span>
+              <span><span className="small-live" /> {commentTab === "pending" ? `${pendingComments?.length ?? 0} pending` : `${approvedComments?.length ?? 0} approved`}</span>
             </div>
-            {pendingComments === null ? (
+            <div className="mod-tabs" role="tablist" aria-label="Filter komentar">
+              <button className={commentTab === "pending" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("pending")}>Menunggu <span>{pendingComments?.length ?? 0}</span></button>
+              <button className={commentTab === "approved" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("approved")}>Disetujui <span>{approvedComments?.length ?? 0}</span></button>
+            </div>
+            {commentTab === "pending" && (pendingComments === null ? (
               <p className="moderation-empty">Memuat komentar...</p>
             ) : pendingComments.length === 0 ? (
               <p className="moderation-empty">Tidak ada komentar yang menunggu moderasi. Komentar publik masuk ke sini setelah dikirim.</p>
@@ -276,6 +320,7 @@ export default function AdminPage() {
                       <div className="moderation-head">
                         <span className="comment-avatar">{comment.author_name.slice(0, 1)}</span>
                         <strong>{comment.author_name}</strong>
+                        {comment.parent_id && <span className="mod-reply-chip">balasan</span>}
                         <span className="moderation-meta">{timeAgo(comment.created_at)}</span>
                         <span className="moderation-target">di {comment.update?.app?.name ?? "aplikasi"} — {comment.update?.title ?? "update"}</span>
                       </div>
@@ -288,7 +333,43 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-            )}
+            ))}
+            {commentTab === "approved" && (approvedComments === null ? (
+              <p className="moderation-empty">Memuat komentar...</p>
+            ) : approvedComments.length === 0 ? (
+              <p className="moderation-empty">Belum ada komentar yang disetujui.</p>
+            ) : (
+              <div className="moderation-list">
+                {approvedComments.map((comment) => (
+                  <div className="moderation-item" key={comment.id}>
+                    <div className="moderation-body">
+                      <div className="moderation-head">
+                        <span className="comment-avatar">{comment.author_name.slice(0, 1)}</span>
+                        <strong>{comment.author_name}</strong>
+                        {comment.author_badge && <span className={`comment-badge badge-${comment.author_badge.toLowerCase()}`}>{comment.author_badge}</span>}
+                        {comment.parent_id && <span className="mod-reply-chip">balasan</span>}
+                        <span className="moderation-meta">{timeAgo(comment.created_at)}</span>
+                        <span className="moderation-target">di {comment.update?.app?.name ?? "aplikasi"} — {comment.update?.title ?? "update"}</span>
+                      </div>
+                      <p>{comment.body}</p>
+                    </div>
+                    <div className="moderation-actions">
+                      <button className="mod-reject" disabled={moderatingId === comment.id} onClick={() => moderateComment(comment.id, "rejected")}><X size={14} /> Tolak</button>
+                      <button className="mod-reply" disabled={replyBusy === comment.id} onClick={() => { setReplyOpenId(replyOpenId === comment.id ? null : comment.id); setReplyBody(""); }}><MessageSquareText size={14} /> Balas</button>
+                    </div>
+                    {replyOpenId === comment.id && (
+                      <div className="reply-form admin-reply-form">
+                        <textarea value={replyBody} onChange={(event) => setReplyBody(event.target.value)} maxLength={1000} placeholder="Balasan tim — langsung tampil publik dengan badge XyDev/XyTeam..." />
+                        <div className="reply-actions">
+                          <button type="button" className="reply-cancel" onClick={() => setReplyOpenId(null)}>Batal</button>
+                          <button className="reply-send" disabled={replyBusy === comment.id || replyBody.trim().length < 2} onClick={() => sendReply(comment.id)}>{replyBusy === comment.id ? "Mengirim..." : "Kirim balasan"}</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
           </section>
 
           <section className="ai-callout">
@@ -298,7 +379,7 @@ export default function AdminPage() {
               <h3>Give your AI a secure publishing lane.</h3>
               <p>AI dapat membuat draft copy, upload file media, membuat aplikasi, dan mem-post update lewat token server khusus. Token tidak pernah dibuka ke publik.</p>
             </div>
-            <a href="/api/ingest/schema" target="_blank">Lihat API schema <ExternalLink size={15} /></a>
+            <a href="/docs/ai">Lihat docs AI <ExternalLink size={15} /></a>
           </section>
         </section>
       </div>

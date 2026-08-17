@@ -18,7 +18,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { error } = await supabase
     .from("comments")
-    .update({ status: parsed.data.status, moderated_at: new Date().toISOString(), moderated_by: moderator })
+    .update({ status: parsed.data.status, moderated_at: new Date().toISOString(), moderated_by: moderator.email })
     .eq("id", id);
   if (error) return NextResponse.json({ error: "Gagal memoderasi komentar." }, { status: 400 });
 

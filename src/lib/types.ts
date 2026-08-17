@@ -17,15 +17,25 @@ export type Project = {
   created_at: string;
 };
 
+export type CommentReaction = "membantu" | "setuju" | "terima kasih";
+
+export type AuthorBadge = "XyDev" | "XyTeam";
+
 export type Comment = {
   id: string;
   update_id: string;
+  parent_id: string | null;
   author_name: string;
+  author_badge?: AuthorBadge | null;
   body: string;
   status?: "pending" | "approved" | "rejected";
   created_at: string;
   moderated_at?: string | null;
   moderated_by?: string | null;
+  /** One level of replies (approved only), attached by the server feed. */
+  replies?: Comment[];
+  /** Reaction counts keyed by reaction name, attached by the server feed. */
+  reactions?: Partial<Record<CommentReaction, number>>;
 };
 
 export type ProgressUpdate = {

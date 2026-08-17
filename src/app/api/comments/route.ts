@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
-const payload = z.object({ updateId: z.string().uuid(), authorName: z.string().trim().min(2).max(48), body: z.string().trim().min(2).max(1000) });
+const payload = z.object({
+  updateId: z.string().uuid(),
+  parentId: z.string().uuid().optional().nullable(),
+  authorName: z.string().trim().min(2).max(48),
+  body: z.string().trim().min(2).max(1000),
+});
 const banned = ["viagra", "casino", "slot gacor", "crypto giveaway"];
 const buckets = new Map<string, { count: number; expires: number }>();
 
@@ -30,7 +35,20 @@ export async function POST(request: Request) {
   const { data: update } = await supabase.from("progress_updates").select("id").eq("id", parsed.data.updateId).eq("is_published", true).maybeSingle();
   if (!update) return NextResponse.json({ error: "Update tidak ditemukan." }, { status: 404 });
 
-  const { error } = await supabase.from("comments").insert({ update_id: parsed.data.updateId, author_name: parsed.data.authorName, body: parsed.data.body, status: "pending" });
+  // Replies must point to an existing comment on the same update.
+  if (parsed.data.parentId) {
+    const { data: parent } = await supabase.from("comments").select("id, update_id").eq("id", parsed.data.parentId).maybeSingle();
+    if (!parent || parent.update_id !== parsed.data.updateId)
+      return NextResponse.json({ error: "Komentar yang dibalas tidak ditemukan." }, { status: 404 });
+  }
+
+  const { error } = await supabase.from("comments").insert({
+    update_id: parsed.data.updateId,
+    parent_id: parsed.data.parentId ?? null,
+    author_name: parsed.data.authorName,
+    body: parsed.data.body,
+    status: "pending",
+  });
   if (error) return NextResponse.json({ error: "Gagal menyimpan komentar." }, { status: 500 });
   return NextResponse.json({ ok: true, moderation: "pending" }, { status: 201 });
 }

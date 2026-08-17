@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowUpRight, CalendarDays, Heart, MessageCircle } from "luc
 import { notFound } from "next/navigation";
 import { getPublicUpdateById } from "@/lib/feed";
 import { getSiteUrl } from "@/lib/site-url";
+import { REACTION_LABELS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -73,13 +74,37 @@ export default async function UpdateDetailPage({ params }: PageProps) {
           {comments.length ? comments.map((comment) => (
             <div className="comment" key={comment.id}>
               <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>
-              <div>
-                <div><strong>{comment.author_name}</strong><span>{dateText(comment.created_at)}</span></div>
+              <div className="comment-main">
+                <div className="comment-head">
+                  <strong>{comment.author_name}</strong>
+                  {comment.author_badge && <span className={`comment-badge badge-${comment.author_badge.toLowerCase()}`}>{comment.author_badge}</span>}
+                  <span>{dateText(comment.created_at)}</span>
+                </div>
                 <p>{comment.body}</p>
+                {(comment.reactions && Object.entries(comment.reactions).some(([, count]) => count > 0)) && (
+                  <div className="reaction-row">
+                    {Object.entries(comment.reactions ?? {}).filter(([, count]) => count > 0).map(([reaction, count]) => (
+                      <span className="react-chip react-chip-static" key={reaction}>{REACTION_LABELS[reaction as keyof typeof REACTION_LABELS] ?? reaction} <b>{count}</b></span>
+                    ))}
+                  </div>
+                )}
+                {(comment.replies ?? []).map((reply) => (
+                  <div className="comment comment-reply" key={reply.id}>
+                    <div className="comment-avatar">{reply.author_name.slice(0, 1)}</div>
+                    <div className="comment-main">
+                      <div className="comment-head">
+                        <strong>{reply.author_name}</strong>
+                        {reply.author_badge && <span className={`comment-badge badge-${reply.author_badge.toLowerCase()}`}>{reply.author_badge}</span>}
+                        <span>{dateText(reply.created_at)}</span>
+                      </div>
+                      <p>{reply.body}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )) : <p className="detail-comments-empty">Belum ada komentar untuk update ini. Buka progress log untuk ikut memberi masukan.</p>}
-          <p className="detail-comments-note"><MessageCircle size={17} /><span>Komentar baru lewat progress log, disaring moderasi dulu sebelum tampil.</span></p>
+          <p className="detail-comments-note"><MessageCircle size={17} /><span>Komentar, balasan, dan reaksi lewat progress log; disaring moderasi dulu sebelum tampil.</span></p>
         </div>
       </article>
     </main>

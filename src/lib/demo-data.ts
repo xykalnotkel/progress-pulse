@@ -37,12 +37,44 @@ export const demoApps: Project[] = [
 ];
 
 const orbitComments: Comment[] = [
-  { id: "cm-1", update_id: "update-01", author_name: "Nadia", body: "The hierarchy here feels incredibly clear. Can’t wait to try the category drill-down.", status: "approved", created_at: "2026-08-16T10:00:00.000Z" },
-  { id: "cm-2", update_id: "update-01", author_name: "Dimas", body: "Love the direction. The calm detail is a really nice touch.", status: "approved", created_at: "2026-08-16T13:20:00.000Z" },
+  {
+    id: "cm-1", update_id: "update-01", parent_id: null, author_name: "Nadia",
+    body: "The hierarchy here feels incredibly clear. Can’t wait to try the category drill-down.",
+    status: "approved", created_at: "2026-08-16T10:00:00.000Z",
+    reactions: { membantu: 4, setuju: 2 },
+    replies: [
+      {
+        id: "cm-4", update_id: "update-01", parent_id: "cm-1", author_name: "Kall", author_badge: "XyDev",
+        body: "Makasih Nadia, catatan ini langsung masuk ke roadmap bulan depan.",
+        status: "approved", created_at: "2026-08-16T14:05:00.000Z",
+        reactions: { membantu: 1 },
+      },
+    ],
+  },
+  {
+    id: "cm-2", update_id: "update-01", parent_id: null, author_name: "Dimas",
+    body: "Love the direction. The calm detail is a really nice touch.",
+    status: "approved", created_at: "2026-08-16T13:20:00.000Z",
+    reactions: { setuju: 3 },
+    replies: [],
+  },
 ];
 
 const frameComments: Comment[] = [
-  { id: "cm-3", update_id: "update-02", author_name: "Sari", body: "Search speed is what I was waiting for. Nice work.", status: "approved", created_at: "2026-08-15T09:05:00.000Z" },
+  {
+    id: "cm-3", update_id: "update-02", parent_id: null, author_name: "Sari",
+    body: "Search speed is what I was waiting for. Nice work.",
+    status: "approved", created_at: "2026-08-15T09:05:00.000Z",
+    reactions: { membantu: 2 },
+    replies: [
+      {
+        id: "cm-5", update_id: "update-02", parent_id: "cm-3", author_name: "Raka", author_badge: "XyTeam",
+        body: "Benefit banget, tim lagi polish indexing-nya biar makin cepat.",
+        status: "approved", created_at: "2026-08-15T11:40:00.000Z",
+        reactions: {},
+      },
+    ],
+  },
 ];
 
 export const demoUpdates: ProgressUpdate[] = [

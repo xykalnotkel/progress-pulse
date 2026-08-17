@@ -1,16 +1,32 @@
 import { getSupabasePublic } from "@/lib/supabase";
-import { isAdminEmail } from "@/lib/auth";
+import { getBadgeForEmail } from "@/lib/auth";
+import type { AuthorBadge } from "@/lib/types";
+
+export type AdminIdentity = { email: string; badge: AuthorBadge; name: string };
+
+function displayName(user: { email?: string; user_metadata?: Record<string, unknown> }): string {
+  const fullName = user.user_metadata?.full_name;
+  if (typeof fullName === "string" && fullName.trim()) return fullName.trim().slice(0, 48);
+  const fallback = user.email?.split("@")[0] ?? "Tim";
+  return fallback.slice(0, 48) || "Tim";
+}
 
 /**
- * Returns the authenticated admin email, or `false` when the request does not
- * belong to the owner. Callers treat `false` as "unauthorized".
+ * Returns the authenticated writer identity (email, comment badge, display
+ * name) when the request belongs to the owner or a listed team member,
+ * or `false` otherwise.
  */
-export async function requestHasAdminAccess(request: Request): Promise<string | false> {
+export async function requestHasAdminAccess(request: Request): Promise<AdminIdentity | false> {
   const supabase = getSupabasePublic();
   const header = request.headers.get("authorization");
   if (!supabase || !header?.startsWith("Bearer ")) return false;
 
   const { data, error } = await supabase.auth.getUser(header.slice(7));
   if (error) return false;
-  return isAdminEmail(data.user?.email) ? (data.user!.email as string) : false;
+
+  const email = data.user?.email;
+  const badge = getBadgeForEmail(email);
+  if (!email || !badge) return false;
+
+  return { email, badge, name: displayName(data.user as { email?: string; user_metadata?: Record<string, unknown> }) };
 }
