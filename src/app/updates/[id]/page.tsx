@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays } from "lucide-react";
-import { getPublicUpdateById } from "@/lib/feed";
+import { getPublicSitemapUpdates, getPublicUpdateById } from "@/lib/feed";
 import { getSiteUrl } from "@/lib/site-url";
 import type { Contributor } from "@/lib/types";
 import { notFound } from "next/navigation";
@@ -10,6 +10,12 @@ import ShareLinks from "@/components/share-links/ShareLinks";
 import UpdateDetailInteractions from "@/components/update-detail-interactions";
 
 export const revalidate = 300;
+export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  const updates = await getPublicSitemapUpdates();
+  return updates.map((update) => ({ id: update.id }));
+}
 
 type PageProps = { params: Promise<{ id: string }> };
 
