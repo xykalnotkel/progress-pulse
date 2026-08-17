@@ -1,12 +1,13 @@
 import "server-only";
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import type { PublicProfile } from "@/lib/types";
 
 export type PublicOwnerProfile = Omit<PublicProfile, "email">;
 
-export const getPublicOwnerProfile = cache(async (): Promise<PublicOwnerProfile> => {
+async function loadPublicOwnerProfile(): Promise<PublicOwnerProfile> {
   const admin = getSupabaseAdmin();
   const ownerEmail = process.env.ADMIN_EMAIL?.toLowerCase();
   if (!admin || !ownerEmail) {
@@ -27,4 +28,7 @@ export const getPublicOwnerProfile = cache(async (): Promise<PublicOwnerProfile>
     activity_text: data?.activity_text ?? null,
     status_updated_at: data?.status_updated_at ?? null,
   };
-});
+}
+
+const cachedProfile = unstable_cache(loadPublicOwnerProfile, ["public-owner-profile"], { revalidate: 300, tags: ["public-content"] });
+export const getPublicOwnerProfile = cache(cachedProfile);

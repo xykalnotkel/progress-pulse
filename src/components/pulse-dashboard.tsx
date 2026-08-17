@@ -1,12 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import dynamic from "next/dynamic";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight,
   ArrowUpRight,
-  Check,
   ChevronDown,
   CircleEllipsis,
   ExternalLink,
@@ -17,18 +15,13 @@ import {
   Moon,
   Plus,
   Search,
-  Send,
   Sparkles,
   Sun,
   X,
 } from "lucide-react";
-import { REACTIONS, REACTION_LABELS } from "@/lib/constants";
-import type { AuthorBadge, Comment, CommentReaction, Contributor, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
-import { getSupabaseBrowser } from "@/lib/supabase-browser";
-import { getVisitorId } from "@/lib/visitor-id";
+import type { Contributor, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
 import type { PublicOwnerProfile } from "@/lib/public-profile";
 
-const HumanCheck = dynamic(() => import("@/components/human-check"), { ssr: false });
 
 function subscribeUrl(callback: () => void) {
   window.addEventListener("popstate", callback);
@@ -65,7 +58,6 @@ type Props = {
   ownerProfile?: PublicOwnerProfile;
 };
 
-type WriterIdentity = { email: string; name: string; avatar: string | null; title: string | null; badge: AuthorBadge };
 
 const statusMeta: Record<UpdateStatus, { label: string; className: string }> = {
   planning: { label: "Planning", className: "status-planning" },
@@ -80,19 +72,6 @@ function dateText(value: string) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
-}
-
-function relativeText(value: string) {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (seconds < 45) return "baru saja";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} menit lalu`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} jam lalu`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} hari lalu`;
-  if (days < 30) return `${Math.floor(days / 7)} minggu lalu`;
-  return dateText(value);
 }
 
 function AppMark({ slug, size = "normal" }: { slug: string; size?: "normal" | "small" }) {
@@ -173,198 +152,6 @@ function PreviewArt({ update }: { update: ProgressUpdate }) {
   );
 }
 
-function CommentBadge({ badge }: { badge?: AuthorBadge | null }) {
-  if (!badge) return null;
-  return <span className={`comment-badge-text badge-text-${badge.toLowerCase()}`}>{badge}</span>;
-}
-
-function CommentAvatar({ comment }: { comment: Comment }) {
-  if (comment.author_avatar) return <Image className="comment-avatar comment-avatar-img" src={comment.author_avatar} alt="" width={27} height={27} />;
-  return <div className="comment-avatar">{comment.author_name.slice(0, 1)}</div>;
-}
-
-function CommentReactionBar({ comment, isDemo }: { comment: Comment; isDemo: boolean }) {
-  const [delta, setDelta] = useState<Partial<Record<CommentReaction, number>>>({});
-  const [done, setDone] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(window.localStorage.getItem("pp-reacted") ?? "[]") as string[]; } catch { return []; }
-  });
-
-  async function react(reaction: CommentReaction) {
-    const key = `${comment.id}:${reaction}`;
-    if (done.includes(key)) return;
-    if (!isDemo) {
-      try {
-        const response = await fetch("/api/comment-reactions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ commentId: comment.id, reaction, visitorId: getVisitorId() }),
-        });
-        if (!response.ok) return;
-      } catch { return; }
-    }
-    setDone((list) => { const next = [...list, key]; window.localStorage.setItem("pp-reacted", JSON.stringify(next)); return next; });
-    setDelta((current) => ({ ...current, [reaction]: (current[reaction] ?? 0) + 1 }));
-  }
-
-  return (
-    <div className="reaction-row">
-      {REACTIONS.map((reaction) => {
-        const count = (comment.reactions?.[reaction] ?? 0) + (delta[reaction] ?? 0);
-        const active = done.includes(`${comment.id}:${reaction}`);
-        return (
-          <button type="button" key={reaction} className={`react-chip${active ? " react-chip-active" : ""}`} onClick={() => react(reaction)} aria-pressed={active}>
-            {REACTION_LABELS[reaction]}
-            {count > 0 && <b>{count}</b>}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function CommentReplyBox({ comment, updateId, isDemo, onReplyCreated, preselectedName, sessionToken, hideNameInput, writerBadge }: {
-  comment: Comment;
-  updateId: string;
-  isDemo: boolean;
-  onReplyCreated: (local: { name: string; body: string; badge?: AuthorBadge; avatar?: string | null; repliedTo?: string }) => void;
-  preselectedName: string;
-  sessionToken?: string | null;
-  hideNameInput: boolean;
-  writerBadge?: AuthorBadge;
-}) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState(preselectedName);
-  const [body, setBody] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [turnstileVersion, setTurnstileVersion] = useState(0);
-  const needsHumanCheck = !isDemo && !hideNameInput;
-
-  function resetHumanCheck() {
-    setTurnstileToken(null);
-    setTurnstileVersion((version) => version + 1);
-  }
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (body.trim().length < 2 || (!hideNameInput && name.trim().length < 2)) return;
-    if (needsHumanCheck && !turnstileToken) {
-      setState("error");
-      return;
-    }
-    setState("sending");
-    if (isDemo) {
-      await new Promise((resolve) => setTimeout(resolve, 450));
-      onReplyCreated({ name: name.trim() || "Tim", body: body.trim(), badge: writerBadge, repliedTo: comment.author_name });
-      setOpen(false); setBody(""); setState("success");
-      return;
-    }
-    try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
-      const response = await fetch("/api/comments", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          updateId,
-          parentId: comment.id,
-          authorName: name || preselectedName,
-          body,
-          visitorId: getVisitorId(),
-          turnstileToken: turnstileToken ?? undefined,
-          website: "",
-        }),
-      });
-      if (!response.ok) throw new Error("Unable to send reply");
-      onReplyCreated({
-        name: name.trim() || preselectedName || "Tim",
-        body: body.trim(),
-        badge: writerBadge,
-        repliedTo: comment.author_name,
-      });
-      resetHumanCheck();
-      setOpen(false); setBody(""); setState("success");
-      setTimeout(() => setState("idle"), 2500);
-    } catch {
-      resetHumanCheck();
-      setState("error");
-    }
-  }
-
-  return (
-    <>
-      <button type="button" className="comment-reply-link" onClick={() => setOpen((value) => !value)}>
-        {open ? <X size={11} /> : <MessageCircle size={11} />} Balas{comment.author_name ? ` ke @${comment.author_name.split(" ")[0]}` : ""}
-      </button>
-      {open && (
-        <form className="reply-form" onSubmit={submit}>
-          <div className="reply-context">Membalas ke <strong>@{comment.author_name}</strong></div>
-          {!hideNameInput && <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required />}
-          <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder={`Tulis balasan untuk @${comment.author_name.split(" ")[0]}...`} required />
-          {needsHumanCheck ? (
-            <HumanCheck key={turnstileVersion} action="comment_reply" onToken={setTurnstileToken} />
-          ) : null}
-          {state === "error" && <p className="comment-notice error">Belum bisa mengirim balasan. Coba lagi.</p>}
-          {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Balasan terkirim.</p>}
-          <div className="reply-actions">
-            <button type="button" className="reply-cancel" onClick={() => setOpen(false)}>Batal</button>
-            <button className="reply-send" disabled={state === "sending" || (needsHumanCheck && !turnstileToken)} type="submit">{state === "sending" ? "Mengirim..." : "Kirim balasan"}</button>
-          </div>
-        </form>
-      )}
-    </>
-  );
-}
-
-function CommentThread({ comment, updateId, isDemo, onPrependLocal, sessionToken, hideNameInput, writerBadge }: {
-  comment: Comment;
-  updateId: string;
-  isDemo: boolean;
-  onPrependLocal: (local: { name: string; body: string; badge?: AuthorBadge; avatar?: string | null; repliedTo?: string }) => void;
-  sessionToken?: string | null;
-  hideNameInput: boolean;
-  writerBadge?: AuthorBadge;
-}) {
-  const isTeam = comment.author_badge === "XyDev" || comment.author_badge === "XyTeam";
-  return (
-    <div className={`comment ${isTeam ? "comment-team" : ""} ${comment.parent_id ? "comment-is-reply" : ""}`}>
-      <CommentAvatar comment={comment} />
-      <div className="comment-main">
-        <div className={`comment-head ${isTeam ? "comment-head-team" : ""}`}>
-          <strong>{comment.author_name}</strong>
-          <CommentBadge badge={comment.author_badge} />
-          {comment.author_title && <span className="comment-title">{comment.author_title}</span>}
-          <span className="comment-time" title={new Date(comment.created_at).toLocaleString("id-ID")}>{relativeText(comment.created_at)}</span>
-        </div>
-        <p>{comment.body}</p>
-        <CommentReactionBar comment={comment} isDemo={isDemo} />
-        {(comment.replies ?? []).map((reply) => {
-          const rIsTeam = reply.author_badge === "XyDev" || reply.author_badge === "XyTeam";
-          return (
-            <div className={`comment comment-reply ${rIsTeam ? "comment-team" : ""}`} key={reply.id}>
-              <div className="thread-line" aria-hidden />
-              <CommentAvatar comment={reply} />
-              <div className="comment-main">
-                <div className={`comment-head ${rIsTeam ? "comment-head-team" : ""}`}>
-                  <strong>{reply.author_name}</strong>
-                  <CommentBadge badge={reply.author_badge} />
-                  {reply.author_title && <span className="comment-title">{reply.author_title}</span>}
-                  <span className="comment-time" title={new Date(reply.created_at).toLocaleString("id-ID")}>{relativeText(reply.created_at)}</span>
-                </div>
-                <span className="replied-to">membalas <strong>@{comment.author_name.split(" ")[0]}</strong></span>
-                <p>{reply.body}</p>
-                <CommentReactionBar comment={reply} isDemo={isDemo} />
-              </div>
-            </div>
-          );
-        })}
-        <CommentReplyBox comment={comment} updateId={updateId} isDemo={isDemo} onReplyCreated={onPrependLocal} preselectedName="" sessionToken={sessionToken} hideNameInput={hideNameInput} writerBadge={writerBadge} />
-      </div>
-    </div>
-  );
-}
-
 function ContributorStack({ contributors }: { contributors: Contributor[] }) {
   if (!contributors.length) return null;
   return (
@@ -381,189 +168,21 @@ function ContributorStack({ contributors }: { contributors: Contributor[] }) {
   );
 }
 
-type LocalComment = { name: string; body: string; when: string; badge?: AuthorBadge | null; avatar?: string | null; isLocal?: boolean; repliedTo?: string };
-
-function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmin }: {
-  update: ProgressUpdate;
-  isDemo: boolean;
-  sessionToken: string | null;
-  writerIdentity: WriterIdentity | null;
-  isWriterAdmin: boolean;
-}) {
+function UpdatePost({ update }: { update: ProgressUpdate }) {
   const meta = statusMeta[update.status];
-  const [localComments, setLocalComments] = useState<LocalComment[]>([]);
-  const [name, setName] = useState(writerIdentity?.name ?? "");
-  const [body, setBody] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const [turnstileVersion, setTurnstileVersion] = useState(0);
-  const needsHumanCheck = !isDemo && !isWriterAdmin;
-  const [likedIds, setLikedIds] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { return JSON.parse(window.localStorage.getItem("pp-liked") ?? "[]") as string[]; } catch { return []; }
-  });
-  const [likeDelta, setLikeDelta] = useState<Record<string, number>>({});
-
-  const serverComments = update.comments ?? [];
-  const serverCommentCount = update.comment_count ?? serverComments.length;
-
-  function isLiked(id: string) { return likedIds.includes(id); }
-  function likeCount(u: ProgressUpdate) { return (u.likes_count ?? 0) + (likeCountDelta[u.id] ?? 0); }
-  const likeCountDelta = likeDelta;
-
-  function appendLocalReply(parentName: string, reply: { name: string; body: string; badge?: AuthorBadge; avatar?: string | null; repliedTo?: string }) {
-    const local: LocalComment = { name: reply.name, body: reply.body, when: "baru saja", badge: reply.badge ?? null, avatar: reply.avatar ?? null, repliedTo: parentName, isLocal: true };
-    setLocalComments((list) => [...list, local]);
-  }
-
-  function resetHumanCheck() {
-    setTurnstileToken(null);
-    setTurnstileVersion((version) => version + 1);
-  }
-
-  async function toggleLike() {
-    if (isLiked(update.id)) return;
-    if (!isDemo) {
-      try {
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
-        const response = await fetch("/api/likes", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ updateId: update.id, visitorId: getVisitorId() }),
-        });
-        if (!response.ok) return;
-      } catch { return; }
-    }
-    setLikedIds((list) => { const next = [...list, update.id]; window.localStorage.setItem("pp-liked", JSON.stringify(next)); return next; });
-    setLikeDelta((delta) => ({ ...delta, [update.id]: (delta[update.id] ?? 0) + 1 }));
-  }
-
-  async function submitComment(event: React.FormEvent) {
-    event.preventDefault();
-    const finalName = writerIdentity?.name ?? name;
-    if (body.trim().length < 2 || (!isWriterAdmin && finalName.trim().length < 2)) return;
-    if (needsHumanCheck && !turnstileToken) {
-      setState("error");
-      return;
-    }
-    setState("sending");
-    const sentName = finalName.trim();
-    if (isDemo) {
-      await new Promise((resolve) => setTimeout(resolve, 450));
-      setLocalComments((list) => [...list, { name: sentName, body: body.trim(), when: "baru saja", badge: writerIdentity?.badge ?? null, avatar: writerIdentity?.avatar ?? null, isLocal: true }]);
-      setBody(""); setState("success");
-      return;
-    }
-    try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
-      const response = await fetch("/api/comments", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          updateId: update.id,
-          authorName: isWriterAdmin ? "" : sentName,
-          body,
-          visitorId: getVisitorId(),
-          turnstileToken: turnstileToken ?? undefined,
-          website: "",
-        }),
-      });
-      if (!response.ok) throw new Error("Unable to send comment");
-      const result = await response.json().catch(() => null);
-      setLocalComments((list) => [...list, { name: result?.identity?.name ?? sentName, body: body.trim(), when: "baru saja", badge: result?.identity?.badge ?? writerIdentity?.badge ?? null, avatar: writerIdentity?.avatar ?? null, isLocal: true }]);
-      resetHumanCheck();
-      setBody(""); setState("success");
-    } catch {
-      resetHumanCheck();
-      setState("error");
-    }
-  }
-
-  return (
-    <article className="update-post">
-      <div className="update-post-visual">
-        <PreviewArt update={update} />
-        <span className={`status-pill ${meta.className}`}><i />{meta.label}</span>
-      </div>
-      <div className="update-post-body">
-        <div className="update-post-meta">
-          <span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span>
-          <span>{dateText(update.created_at)}</span>
-          {update.version && <span className="update-version">{update.version}</span>}
-          {(update.tags ?? []).slice(0, 3).map((tag) => <span className="update-tag" key={tag}>#{tag}</span>)}
-          <ContributorStack contributors={update.contributors ?? []} />
-        </div>
-        <h3>{update.title}</h3>
-        <p className="update-post-description">{update.description}</p>
-        <div className="update-post-actions">
-          <button type="button" className={isLiked(update.id) ? "reaction reaction-liked" : "reaction"} onClick={toggleLike}>
-            <Heart size={15} fill={isLiked(update.id) ? "currentColor" : "none"} /> {likeCount(update)} like{likeCount(update) === 1 ? "" : "s"}
-          </button>
-          <a className="reaction" href={`#komentar-${update.id}`}><MessageCircle size={15} /> {serverCommentCount + localComments.length} komentar</a>
-          <Link className="read-link" href={`/updates/${update.id}`}>Buka halaman update <ArrowUpRight size={15} /></Link>
-        </div>
-
-        <div className="post-comments" id={`komentar-${update.id}`}>
-          <div className="comments-heading">
-            <h3>Komentar <span>{serverCommentCount + localComments.length}</span></h3>
-            <p>Keep it kind, useful, and on-topic. Komentar langsung tampil — tanpa persetujuan.</p>
-          </div>
-          {serverComments.map((comment) => (
-            <CommentThread
-              key={comment.id}
-              comment={comment}
-              updateId={update.id}
-              isDemo={isDemo}
-              onPrependLocal={(reply) => appendLocalReply(comment.author_name, reply)}
-              sessionToken={sessionToken}
-              hideNameInput={isWriterAdmin}
-              writerBadge={writerIdentity?.badge}
-            />
-          ))}
-          {localComments.map((local, index) => (
-            <div className={`comment ${local.badge ? "comment-team" : ""}`} key={`local-${index}`}>
-              <div className="comment-avatar">{local.name.slice(0, 1)}</div>
-              <div className="comment-main">
-                <div className={`comment-head ${local.badge ? "comment-head-team" : ""}`}>
-                  <strong>{local.name}</strong>
-                  <CommentBadge badge={local.badge} />
-                  <span className="comment-time">{local.when}</span>
-                </div>
-                {local.repliedTo && <span className="replied-to">membalas <strong>@{local.repliedTo.split(" ")[0]}</strong></span>}
-                <p>{local.body}</p>
-              </div>
-            </div>
-          ))}
-          {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar terkirim dan langsung tampil.</p>}
-          {state === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}
-          <form className="comment-form" onSubmit={submitComment}>
-            <div>
-              {!isWriterAdmin && <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required />}
-              {isWriterAdmin && writerIdentity && (
-                <div className="comment-form-as">
-                  {writerIdentity.avatar ? <Image className="comment-form-avatar" src={writerIdentity.avatar} alt="" width={30} height={30} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} /> : null}
-                  <div className="comment-form-name">
-                    <strong>{writerIdentity.name}</strong>
-                    <span>Akan tampil sebagai <CommentBadge badge={writerIdentity.badge} /></span>
-                  </div>
-                </div>
-              )}
-              <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required />
-              {needsHumanCheck ? (
-                <HumanCheck key={turnstileVersion} action="comment" onToken={setTurnstileToken} />
-              ) : null}
-            </div>
-            <button className="send-button" disabled={state === "sending" || (needsHumanCheck && !turnstileToken)} type="submit">{state === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button>
-          </form>
-        </div>
-      </div>
-    </article>
-  );
+  return <article className="update-post">
+    <Link className="update-post-visual" href={`/updates/${update.id}`} aria-label={`Baca ${update.title}`}>
+      <PreviewArt update={update}/><span className={`status-pill ${meta.className}`}><i/>{meta.label}</span>
+    </Link>
+    <div className="update-post-body">
+      <div className="update-post-meta"><span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small"/> {update.app?.name}</span><span>{dateText(update.created_at)}</span>{update.version ? <span className="update-version">{update.version}</span> : null}{(update.tags ?? []).slice(0,3).map((tag)=><span className="update-tag" key={tag}>#{tag}</span>)}<ContributorStack contributors={update.contributors ?? []}/></div>
+      <h3>{update.title}</h3><p className="update-post-description">{update.description}</p>
+      <div className="update-post-actions"><Link className="reaction" href={`/updates/${update.id}`}><Heart size={15}/> {update.likes_count ?? 0} Like</Link><Link className="reaction" href={`/updates/${update.id}#tulis-komentar`}><MessageCircle size={15}/> {update.comment_count ?? 0} Komentar</Link><Link className="read-link" href={`/updates/${update.id}`}>Baca lengkap <ArrowUpRight size={15}/></Link></div>
+    </div>
+  </article>;
 }
 
-export default function PulseDashboard({ apps, updates, isDemo = false, view = "home", ownerProfile }: Props) {
+export default function PulseDashboard({ apps, updates, view = "home", ownerProfile }: Props) {
   const urlActiveApp = useSyncExternalStore(subscribeUrl, getUrlApp, () => "all");
   const storedDark = useSyncExternalStore(subscribeTheme, getStoredTheme, () => true);
   const [activeAppOverride, setActiveApp] = useState<string | null>(null);
@@ -573,8 +192,6 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
   const [navOpen, setNavOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeStatus, setActiveStatus] = useState<UpdateStatus | "all">("all");
-  const [writer, setWriter] = useState<WriterIdentity | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   function toggleTheme() {
     const next = !dark;
@@ -582,26 +199,6 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
     try { window.localStorage.setItem("pulse-theme", next ? "dark" : "light"); } catch { /* noop */ }
   }
 
-  useEffect(() => {
-    if (isDemo) return;
-    const supabase = getSupabaseBrowser();
-    if (!supabase) return;
-    let active = true;
-    (async () => {
-      const { data: session } = await supabase.auth.getSession();
-      if (!active) return;
-      const token = session.session?.access_token ?? null;
-      setSessionToken(token);
-      if (!token) return setWriter(null);
-      try {
-        const response = await fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } });
-        if (!response.ok) return;
-        const data = await response.json();
-        if (data.identity) setWriter({ email: data.identity.email, name: data.profile?.display_name ?? data.identity.name, avatar: data.profile?.avatar_url ?? data.identity.avatar, title: data.profile?.title ?? null, badge: data.identity.badge });
-      } catch { /* noop */ }
-    })();
-    return () => { active = false; };
-  }, [isDemo]);
 
   const filteredUpdates = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("id-ID");
@@ -710,7 +307,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
         </div>
         <div className="updates-list">
           {filteredUpdates.map((update) => (
-            <UpdatePost key={update.id} update={update} isDemo={isDemo} sessionToken={sessionToken} writerIdentity={writer} isWriterAdmin={Boolean(writer)} />
+            <UpdatePost key={update.id} update={update} />
           ))}
         </div>
         {filteredUpdates.length === 0 && <div className="empty-feed">Nothing in this lane just yet.</div>}

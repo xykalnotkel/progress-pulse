@@ -1,8 +1,9 @@
 import "server-only";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export function revalidatePublicContent(updateId?: string) {
+  revalidateTag("public-content", "max");
   revalidatePath("/");
   revalidatePath("/apps");
   revalidatePath("/updates");
