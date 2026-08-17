@@ -8,8 +8,10 @@ import {
   ArrowUpRight,
   Check,
   ChevronDown,
+  CircleEllipsis,
   ExternalLink,
   Heart,
+  Layers3,
   MessageCircle,
   Moon,
   Plus,
@@ -188,6 +190,16 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
         </div>
       </section>}
 
+      {view === "home" && <section className="home-overview">
+        <div className="home-overview-heading"><div><p className="eyebrow">THE WORKBENCH</p><h2>More than a launch log.</h2></div><p>A home for the applications, releases, and small decisions that move the work forward.</p></div>
+        <div className="home-route-grid">
+          <Link href="/apps" className="home-route-card route-apps"><span className="route-number">01</span><Layers3 size={24} /><strong>{apps.length || "New"} apps in motion</strong><p>Each product has its own space, link, and story.</p><span className="route-arrow">Explore apps <ArrowRight size={15} /></span></Link>
+          <Link href="/updates" className="home-route-card route-updates"><span className="route-number">02</span><Sparkles size={24} /><strong>{updates.length || "Fresh"} progress notes</strong><p>Small releases, experiments, and the reasoning behind them.</p><span className="route-arrow">Read updates <ArrowRight size={15} /></span></Link>
+          <Link href="/about" className="home-route-card route-about"><span className="route-number">03</span><CircleEllipsis size={24} /><strong>Built in the open</strong><p>Follow the ideas while they are still becoming real.</p><span className="route-arrow">About XySpace <ArrowRight size={15} /></span></Link>
+        </div>
+        {updates.length > 0 && <div className="home-latest"><div className="home-latest-heading"><div><p className="eyebrow">LATEST SIGNAL</p><h2>From the progress log</h2></div><Link href="/updates" className="text-link">View all <ArrowRight size={15} /></Link></div><div className="home-latest-grid">{updates.slice(0, 2).map((update) => <article className="home-update" key={update.id}><button type="button" onClick={() => { setSelected(update); setCommentState("idle"); }}><PreviewArt update={update} /></button><div><span><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name} · {dateText(update.created_at)}</span><h3>{update.title}</h3><p>{update.description}</p><Link href={`/updates/${update.id}`}>Read note <ArrowUpRight size={14} /></Link></div></article>)}</div></div>}
+      </section>}
+
       {view === "apps" && <section className="app-rail" id="apps">
         <div className="rail-heading"><div><p className="eyebrow">THE ECOSYSTEM</p><h2>Currently in motion</h2></div><Link href="/updates" className="text-link">All updates <ArrowRight size={15} /></Link></div>
         <div className="apps-grid">
@@ -213,7 +225,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
             const meta = statusMeta[update.status];
             return <article className={`update-card update-card-${index + 1}`} key={update.id}>
               <button type="button" className="update-art-button" onClick={() => { setSelected(update); setCommentState("idle"); }} aria-label={`Read ${update.title}`}><PreviewArt update={update} /><span className={`status-pill ${meta.className}`}><i />{meta.label}</span></button>
-              <div className="update-body"><div className="update-meta"><span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span><span>{dateText(update.created_at)}</span></div><h3>{update.title}</h3><p>{update.description}</p><div className="update-footer"><button type="button" className={liked.includes(update.id) ? "reaction reaction-liked" : "reaction"} onClick={() => setLiked((list) => list.includes(update.id) ? list.filter((id) => id !== update.id) : [...list, update.id])}><Heart size={15} fill={liked.includes(update.id) ? "currentColor" : "none"} /> {likes(update.id)}</button><button type="button" className="reaction" onClick={() => { setSelected(update); setCommentState("idle"); }}><MessageCircle size={15} /> {update.comment_count ?? 0}</button><button type="button" className="read-link" onClick={() => { setSelected(update); setCommentState("idle"); }}>View update <ArrowUpRight size={15} /></button></div></div>
+              <div className="update-body"><div className="update-meta"><span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span><span>{dateText(update.created_at)}</span></div><h3>{update.title}</h3><p>{update.description}</p><div className="update-footer"><button type="button" className={liked.includes(update.id) ? "reaction reaction-liked" : "reaction"} onClick={() => setLiked((list) => list.includes(update.id) ? list.filter((id) => id !== update.id) : [...list, update.id])}><Heart size={15} fill={liked.includes(update.id) ? "currentColor" : "none"} /> {likes(update.id)}</button><button type="button" className="reaction" onClick={() => { setSelected(update); setCommentState("idle"); }}><MessageCircle size={15} /> {update.comment_count ?? 0}</button><Link className="read-link" href={`/updates/${update.id}`}>View update <ArrowUpRight size={15} /></Link></div></div>
             </article>;
           })}
         </div>

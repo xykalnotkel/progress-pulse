@@ -2,6 +2,15 @@ import { demoApps, demoUpdates } from "@/lib/demo-data";
 import { getSupabasePublic } from "@/lib/supabase";
 import type { ProgressUpdate, Project } from "@/lib/types";
 
+export async function getPublicUpdateById(id: string) {
+  const supabase = getSupabasePublic();
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !supabase;
+  if (demoMode) return demoUpdates.find((update) => update.id === id) ?? null;
+
+  const { data } = await supabase.from("progress_updates").select("*, app:apps(id,name,slug)").eq("id", id).eq("is_published", true).maybeSingle();
+  return (data ?? null) as unknown as ProgressUpdate | null;
+}
+
 export async function getPublicFeed() {
   const supabase = getSupabasePublic();
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !supabase;

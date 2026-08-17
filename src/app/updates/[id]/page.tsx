@@ -1,0 +1,45 @@
+/* eslint-disable @next/next/no-img-element */
+
+import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowLeft, ArrowUpRight, CalendarDays, MessageCircle } from "lucide-react";
+import { notFound } from "next/navigation";
+import { getPublicUpdateById } from "@/lib/feed";
+
+export const dynamic = "force-dynamic";
+
+type PageProps = { params: Promise<{ id: string }> };
+
+function dateText(value: string) {
+  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(new Date(value));
+}
+
+function imageMedia(url?: string) {
+  return Boolean(url && !/\.(mp4|webm|mov)(\?.*)?$/i.test(url));
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const update = await getPublicUpdateById(id);
+  if (!update) return { title: "Update tidak ditemukan", robots: { index: false, follow: false } };
+  const description = update.description ?? `Progress update terbaru dari ${update.app?.name ?? "XySpace"}.`;
+  const fallback = `/opengraph-image?title=${encodeURIComponent(update.title)}&app=${encodeURIComponent(update.app?.name ?? "XySpace")}`;
+  const ogImage = imageMedia(update.media?.[0]) ? update.media[0] : fallback;
+  return {
+    title: update.title,
+    description,
+    alternates: { canonical: `/updates/${update.id}` },
+    openGraph: { type: "article", title: update.title, description, publishedTime: update.created_at, authors: ["XySpace"], images: [{ url: ogImage, alt: update.title }] },
+    twitter: { card: "summary_large_image", title: update.title, description, images: [ogImage] },
+  };
+}
+
+export default async function UpdateDetailPage({ params }: PageProps) {
+  const { id } = await params;
+  const update = await getPublicUpdateById(id);
+  if (!update) notFound();
+  const media = update.media?.[0];
+  const hasImage = imageMedia(media);
+
+  return <main className="detail-page"><div className="detail-ambient detail-ambient-one" /><div className="detail-ambient detail-ambient-two" /><nav className="detail-nav"><Link href="/" className="detail-brand"><img src="/images/xyspace-logo.webp" alt="" /> XySpace <span>Blog</span></Link><Link href="/updates" className="detail-back"><ArrowLeft size={15} /> Semua update</Link></nav><article className="detail-article"><div className="detail-meta"><span className="detail-app">{update.app?.name ?? "XySpace"}</span><i /> <time dateTime={update.created_at}><CalendarDays size={14} /> {dateText(update.created_at)}</time>{update.version && <><i /> <span>{update.version}</span></>}</div><h1>{update.title}</h1><p className="detail-description">{update.description}</p>{media && <div className="detail-media">{hasImage ? <img src={media} alt={`Preview ${update.title}`} /> : <video src={media} controls playsInline />}</div>}<div className="detail-bottom"><Link href="/updates"><ArrowLeft size={15} /> Kembali ke progress log</Link><a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(update.title)}&url=${encodeURIComponent(`https://xyspace.xyc.my.id/updates/${update.id}`)}`} target="_blank" rel="noreferrer">Bagikan update <ArrowUpRight size={15} /></a></div><div className="detail-comments-note"><MessageCircle size={17} /><div><strong>Ingin memberi masukan?</strong><p>Buka progress log untuk melihat dan menulis komentar pada update ini.</p></div></div></article></main>;
+}
