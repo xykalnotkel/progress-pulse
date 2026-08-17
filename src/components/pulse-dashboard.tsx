@@ -490,6 +490,7 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
           <span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span>
           <span>{dateText(update.created_at)}</span>
           {update.version && <span className="update-version">{update.version}</span>}
+          {(update.tags ?? []).slice(0, 3).map((tag) => <span className="update-tag" key={tag}>#{tag}</span>)}
           <ContributorStack contributors={update.contributors ?? []} />
         </div>
         <h3>{update.title}</h3>
@@ -605,7 +606,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
     return updates.filter((update) => {
       const matchesApp = activeApp === "all" || update.app?.slug === activeApp;
       const matchesStatus = activeStatus === "all" || update.status === activeStatus;
-      const haystack = `${update.title} ${update.description ?? ""} ${update.app?.name ?? ""} ${update.version ?? ""}`.toLocaleLowerCase("id-ID");
+      const haystack = `${update.title} ${update.description ?? ""} ${update.app?.name ?? ""} ${update.version ?? ""} ${(update.tags ?? []).join(" ")}`.toLocaleLowerCase("id-ID");
       return matchesApp && matchesStatus && (!query || haystack.includes(query));
     });
   }, [activeApp, activeStatus, searchQuery, updates]);

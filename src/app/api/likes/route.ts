@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     .from("progress_updates")
     .select("id")
     .eq("id", parsed.data.updateId)
-    .eq("is_published", true)
+    .or(`is_published.eq.true,scheduled_for.lte.${new Date().toISOString()}`)
     .maybeSingle();
   if (!update) {
     return NextResponse.json({ error: "Update tidak ditemukan." }, { status: 404 });

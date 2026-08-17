@@ -25,6 +25,7 @@ export async function GET() {
       <guid isPermaLink="true">${xml(url)}</guid>
       <pubDate>${new Date(update.created_at).toUTCString()}</pubDate>
       <category>${xml(category)}</category>
+      ${(update.tags ?? []).map((tag) => `<category>${xml(tag)}</category>`).join("\n      ")}
       <description>${xml(description)}</description>
     </item>`;
   }).join("\n");

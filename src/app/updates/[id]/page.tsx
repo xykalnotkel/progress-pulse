@@ -62,6 +62,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title: update.title,
     description,
+    keywords: update.tags ?? [],
     alternates: { canonical, types: { "application/rss+xml": "/feed.xml" } },
     openGraph: {
       type: "article",
@@ -132,6 +133,7 @@ export default async function UpdateDetailPage({ params }: PageProps) {
     mainEntityOfPage: shareUrl,
     author: { "@type": "Organization", name: "XySpace" },
     publisher: { "@type": "Organization", name: "XySpace" },
+    keywords: update.tags?.join(", ") || undefined,
     image: hasImage && media ? [media] : undefined,
   }).replace(/</g, "\\u003c");
 
@@ -150,6 +152,7 @@ export default async function UpdateDetailPage({ params }: PageProps) {
           {update.version ? <><i /> <span className="update-version">{update.version}</span></> : null}
           <ContributorStack contributors={update.contributors ?? []} />
         </div>
+        {(update.tags ?? []).length ? <div className="detail-tags">{update.tags!.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}
         <h1>{update.title}</h1>
         <p className="detail-description">{update.description}</p>
         {media ? (

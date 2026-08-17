@@ -21,7 +21,7 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Public comments appear instantly with invisible Turnstile verification, durable rate limits, and an owner-only hide/show panel
 - Real like counters persisted in the database with server-side anonymous deduplication
 - Google login protected admin control room
-- Owner workflow for create/edit apps and create/edit/draft/publish/delete updates with server-controlled timestamps
+- Owner workflow for create/edit apps and create/edit/draft/schedule/publish/delete updates with tags and server-controlled timestamps
 - RSS 2.0 feed at `/feed.xml` for release readers and aggregators
 - Privacy-documented Vercel Analytics and Speed Insights for production observability
 - Server-validated Cloudinary uploads with file-signature checks for admin and automation
@@ -166,7 +166,7 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 - Likes and reactions are written only through server routes. Browser roles cannot query their internal hashes, and database constraints reject duplicate visitor interactions.
 - Public write limits are stored atomically in Supabase, so they remain effective across serverless instances. Like and reaction duplicates are rejected by database constraints; provider-level WAF rules remain an additional defense layer.
 
-> Existing projects: apply migrations 001 through 006 in order via the Supabase SQL Editor. Migration 005 and 006 harden private data and public write endpoints. Fresh setups get everything from `supabase/schema.sql`.
+> Existing projects: apply migrations 001 through 007 in order via the Supabase SQL Editor. Migration 005 and 006 harden private data and public write endpoints. Fresh setups get everything from `supabase/schema.sql`.
 
 ## Deploying to Vercel
 

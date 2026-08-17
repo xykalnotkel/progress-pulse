@@ -11,7 +11,7 @@ const httpsUrl = z.string().trim().refine(isSafeHttpsUrl, "URL HTTPS tidak valid
 const cloudinaryUrl = z.string().trim().refine(isConfiguredCloudinaryUrl, "Media Cloudinary tidak valid.");
 const link = z.object({ label: z.string().trim().min(1).max(30), url: httpsUrl });
 const createApp = z.object({ action: z.literal("create_app"), name: z.string().trim().min(1).max(80), slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80), tagline: z.string().trim().max(180).optional(), description: z.string().trim().max(3000).optional(), coverUrl: cloudinaryUrl.optional(), links: z.array(link).max(8).default([]), isPublished: z.boolean().default(true) });
-const createUpdate = z.object({ action: z.literal("create_update"), appSlug: z.string().trim().toLowerCase().min(1).max(80), title: z.string().trim().min(1).max(160), description: z.string().trim().max(5000).optional(), status: z.enum(["planning", "building", "testing", "shipped"]).default("building"), version: z.string().trim().max(40).optional(), media: z.array(cloudinaryUrl).max(12).default([]), isPublished: z.boolean().default(true) });
+const createUpdate = z.object({ action: z.literal("create_update"), appSlug: z.string().trim().toLowerCase().min(1).max(80), title: z.string().trim().min(1).max(160), description: z.string().trim().max(5000).optional(), status: z.enum(["planning", "building", "testing", "shipped"]).default("building"), version: z.string().trim().max(40).optional(), tags: z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)).max(10).default([]), scheduledFor: z.string().datetime({ offset: true }).optional().nullable(), media: z.array(cloudinaryUrl).max(12).default([]), isPublished: z.boolean().default(true) });
 const draftCopy = z.object({ action: z.literal("draft_copy"), appName: z.string().trim().min(1).max(80), context: z.string().trim().min(8).max(6000), tone: z.string().trim().max(80).default("confident, concise, warm") });
 const schema = z.discriminatedUnion("action", [createApp, createUpdate, draftCopy]);
 
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   const { data: app } = await supabase.from("apps").select("id,slug").eq("slug", input.appSlug).single();
   if (!app) return NextResponse.json({ error: "Aplikasi dengan appSlug tersebut tidak ditemukan." }, { status: 404 });
-  const { data, error } = await supabase.from("progress_updates").insert({ app_id: app.id, title: input.title, description: input.description ?? null, status: input.status, version: input.version ?? null, media: optimizeMediaList(input.media), is_published: input.isPublished }).select().single();
+  const { data, error } = await supabase.from("progress_updates").insert({ app_id: app.id, title: input.title, description: input.description ?? null, status: input.status, version: input.version ?? null, tags: input.tags, scheduled_for: input.scheduledFor ?? null, media: optimizeMediaList(input.media), is_published: input.scheduledFor ? false : input.isPublished }).select().single();
   if (error) return NextResponse.json({ error: "Gagal membuat update." }, { status: 400 });
   revalidatePublicContent(data.id);
   return NextResponse.json({ ok: true, update: data }, { status: 201 });

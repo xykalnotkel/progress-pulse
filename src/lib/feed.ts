@@ -15,6 +15,10 @@ function isDemoMode() {
   return process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !getFeedClient();
 }
 
+function publicUpdateFilter() {
+  return `is_published.eq.true,scheduled_for.lte.${new Date().toISOString()}`;
+}
+
 type UpdateWithStats = Omit<ProgressUpdate, "contributors"> & {
   comments?: Comment[];
   contributors?: string[];
@@ -117,7 +121,7 @@ export const getPublicUpdateById = cache(async function getPublicUpdateById(id: 
     .from("progress_updates")
     .select("*, app:apps(id,name,slug)")
     .eq("id", id)
-    .eq("is_published", true)
+    .or(publicUpdateFilter())
     .maybeSingle();
 
   if (!data) return null;
@@ -134,7 +138,7 @@ export async function getPublicFeed() {
     supabase!
       .from("progress_updates")
       .select("*, app:apps(id,name,slug)")
-      .eq("is_published", true)
+      .or(publicUpdateFilter())
       .order("created_at", { ascending: false }),
   ]);
 
@@ -153,8 +157,8 @@ export async function getPublicRssUpdates() {
 
   const { data, error } = await supabase
     .from("progress_updates")
-    .select("id, app_id, title, description, status, version, media, is_published, created_at, updated_at, app:apps(id,name,slug)")
-    .eq("is_published", true)
+    .select("id, app_id, title, description, status, version, media, is_published, scheduled_for, tags, created_at, updated_at, app:apps(id,name,slug)")
+    .or(publicUpdateFilter())
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) throw new Error("Gagal memuat RSS update.");
@@ -167,6 +171,8 @@ export async function getPublicRssUpdates() {
     version: row.version ? String(row.version) : null,
     media: Array.isArray(row.media) ? row.media.map(String) : [],
     is_published: Boolean(row.is_published),
+    scheduled_for: row.scheduled_for ? String(row.scheduled_for) : null,
+    tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
     app: (Array.isArray(row.app) ? row.app[0] : row.app) ?? undefined,
@@ -185,7 +191,7 @@ export async function getPublicSitemapUpdates() {
   const { data, error } = await supabase
     .from("progress_updates")
     .select("id, updated_at, created_at")
-    .eq("is_published", true)
+    .or(publicUpdateFilter())
     .order("updated_at", { ascending: false })
     .limit(1000);
   if (error) throw new Error("Gagal memuat sitemap update.");

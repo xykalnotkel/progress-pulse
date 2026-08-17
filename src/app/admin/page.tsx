@@ -33,12 +33,13 @@ type TeamMember = { email: string; added_at: string; added_by: string | null };
 type AdminUpdate = {
   id: string; title: string; description: string | null; status: UpdateStatus;
   version: string | null; media: string[]; is_published: boolean;
+  scheduled_for: string | null; tags: string[];
   created_at: string; contributors: string[] | null;
   app: { id: string; name: string; slug: string } | null;
 };
 
 const blankApp = { name: "", slug: "", tagline: "", description: "", website: "", coverUrl: "", isPublished: true };
-const blankUpdate = { appId: "", title: "", description: "", status: "building" as UpdateStatus, version: "", media: "", contributorsText: "", isPublished: true };
+const blankUpdate = { appId: "", title: "", description: "", status: "building" as UpdateStatus, version: "", media: "", contributorsText: "", tagsText: "", scheduledFor: "", isPublished: true };
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -54,6 +55,13 @@ function timeAgo(value: string) {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days} hari lalu`;
   return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+}
+
+function toLocalDateTimeInput(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 
 function CommentAvatar({ comment }: { comment: ManagedComment }) {
@@ -352,6 +360,8 @@ export default function AdminPage() {
       version: update.version ?? "",
       media: update.media?.[0] ?? "",
       contributorsText: (update.contributors ?? []).join(", "),
+      tagsText: (update.tags ?? []).join(", "),
+      scheduledFor: toLocalDateTimeInput(update.scheduled_for),
       isPublished: update.is_published,
     });
     document.getElementById("new-update")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -366,6 +376,7 @@ export default function AdminPage() {
     event.preventDefault(); setNotice(null); setSaving("update");
     try {
       const contributors = updateForm.contributorsText.split(/[\s,]+/).map((c) => c.trim().toLowerCase()).filter((c) => /.+@.+\..+/.test(c));
+      const tags = [...new Set(updateForm.tagsText.split(/[,\s]+/).map(slugify).filter(Boolean))].slice(0, 10);
       const response = await fetch(editingId ? `/api/admin/updates/${editingId}` : "/api/admin/updates", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
@@ -377,6 +388,8 @@ export default function AdminPage() {
           version: updateForm.version || null,
           media: updateForm.media ? [updateForm.media] : [],
           contributors,
+          tags,
+          scheduledFor: updateForm.scheduledFor ? new Date(updateForm.scheduledFor).toISOString() : null,
           isPublished: updateForm.isPublished,
         }),
       });
@@ -485,6 +498,10 @@ export default function AdminPage() {
               </div>
               <label>Deskripsi<textarea maxLength={5000} required placeholder="Apa yang berubah? Ceritakan konteks singkatnya..." value={updateForm.description} onChange={(e) => setUpdateForm({ ...updateForm, description: e.target.value })} /></label>
               <label>Kontributor (email, pisah koma atau spasi)<input value={updateForm.contributorsText} onChange={(e) => setUpdateForm({ ...updateForm, contributorsText: e.target.value })} placeholder="email1@kamu.id, email2@kamu.id" maxLength={400} /></label>
+              <div className="form-row">
+                <label>Tags<input value={updateForm.tagsText} onChange={(e) => setUpdateForm({ ...updateForm, tagsText: e.target.value })} placeholder="android, release, ui-ux" maxLength={240} /></label>
+                <label>Jadwalkan tayang<input type="datetime-local" value={updateForm.scheduledFor} onChange={(e) => setUpdateForm({ ...updateForm, scheduledFor: e.target.value, isPublished: e.target.value ? false : updateForm.isPublished })} /></label>
+              </div>
               <div className="form-row">
                 <label>Status
                   <select value={updateForm.status} onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value as UpdateStatus })}>
@@ -646,7 +663,8 @@ export default function AdminPage() {
                       </div>
                       <div className="updates-list-cell updates-list-cell-meta">
                         <span className={`status-pill status-${update.status}`}><i />{update.status}</span>
-                        {!update.is_published ? <span className="draft-chip">draft</span> : null}
+                        {!update.is_published ? <span className="draft-chip">{update.scheduled_for ? "scheduled" : "draft"}</span> : null}
+                        {update.tags?.slice(0, 2).map((tag) => <span className="contributor-chip" key={tag}>#{tag}</span>)}
                         {update.version ? <span className="update-version-mini">{update.version}</span> : null}
                         {(update.contributors ?? []).length ? <span className="contributor-chip">{update.contributors!.length} kontributor</span> : null}
                       </div>

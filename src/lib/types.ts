@@ -71,6 +71,8 @@ export type ProgressUpdate = {
   is_published: boolean;
   created_at: string;
   updated_at?: string;
+  scheduled_for?: string | null;
+  tags?: string[];
   app?: Pick<Project, "id" | "name" | "slug">;
   comment_count?: number;
   likes_count?: number;

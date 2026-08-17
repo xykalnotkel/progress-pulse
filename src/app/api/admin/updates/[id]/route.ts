@@ -17,6 +17,8 @@ const payload = z.object({
   media: z.array(cloudinaryUrl).max(12).default([]),
   isPublished: z.boolean(),
   contributors: z.array(z.string().trim().toLowerCase().email()).max(8).default([]),
+  tags: z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)).max(10).default([]),
+  scheduledFor: z.string().datetime({ offset: true }).optional().nullable(),
 });
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -46,8 +48,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       status: input.status,
       version: input.version ?? null,
       media: optimizeMediaList(input.media),
-      is_published: input.isPublished,
+      is_published: input.scheduledFor ? false : input.isPublished,
       contributors: input.contributors,
+      tags: input.tags,
+      scheduled_for: input.scheduledFor ?? null,
     })
     .eq("id", parsedId.data)
     .select()

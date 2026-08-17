@@ -16,6 +16,8 @@ const payload = z.object({
   media: z.array(cloudinaryUrl).max(12).default([]),
   isPublished: z.boolean().default(true),
   contributors: z.array(z.string().trim().toLowerCase().email()).max(8).optional().default([]),
+  tags: z.array(z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)).max(10).default([]),
+  scheduledFor: z.string().datetime({ offset: true }).optional().nullable(),
 });
 
 /** Create a progress update from the authenticated control room. */
@@ -48,8 +50,10 @@ export async function POST(request: Request) {
       status: input.status,
       version: input.version ?? null,
       media: optimizeMediaList(input.media),
-      is_published: input.isPublished,
+      is_published: input.scheduledFor ? false : input.isPublished,
       contributors: input.contributors,
+      tags: input.tags,
+      scheduled_for: input.scheduledFor ?? null,
     })
     .select()
     .single();
@@ -76,7 +80,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("progress_updates")
-    .select("id, title, description, status, version, media, is_published, created_at, contributors, app:apps(id, name, slug)")
+    .select("id, title, description, status, version, media, is_published, scheduled_for, tags, created_at, contributors, app:apps(id, name, slug)")
     .order("created_at", { ascending: false })
     .limit(200);
 
