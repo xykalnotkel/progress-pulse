@@ -158,3 +158,18 @@ for select using (true);
 
 -- Admin/team replies can carry a custom avatar.
 alter table public.comments add column if not exists author_avatar text;
+
+-- ============================================================
+-- Team members (editable from dashboard) + profile enrichment
+-- ============================================================
+create table if not exists public.team_members (
+  email text primary key,
+  added_at timestamptz not null default now(),
+  added_by text
+);
+-- team_members is admin-managed; service role bypasses RLS for reads.
+
+alter table public.profiles add column if not exists banner_url text;
+alter table public.profiles add column if not exists bio text check (char_length(bio) <= 240);
+alter table public.profiles add column if not exists links jsonb not null default '[]'::jsonb;
+alter table public.comments add column if not exists author_title text;

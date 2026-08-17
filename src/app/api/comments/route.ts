@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { requestHasAdminAccess } from "@/lib/request-auth";
 
 const payload = z.object({
   updateId: z.string().uuid(),
@@ -31,27 +32,44 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
 
-  // Only accept comments on updates that are actually published.
   const { data: update } = await supabase.from("progress_updates").select("id").eq("id", parsed.data.updateId).eq("is_published", true).maybeSingle();
   if (!update) return NextResponse.json({ error: "Update tidak ditemukan." }, { status: 404 });
 
-  // Replies must point to an existing comment on the same update.
   if (parsed.data.parentId) {
     const { data: parent } = await supabase.from("comments").select("id, update_id").eq("id", parsed.data.parentId).maybeSingle();
     if (!parent || parent.update_id !== parsed.data.updateId)
       return NextResponse.json({ error: "Komentar yang dibalas tidak ditemukan." }, { status: 404 });
   }
 
-  // Comments appear immediately: no manual approval step. The spam filter
-  // above and the rate limiter are the automated guards; the owner can hide
-  // an abusive comment later from the control room.
+  // If the request carries an admin/team session, use the profile (name,
+  // badge, avatar) and ignore the typed-in authorName.
+  const identity = await requestHasAdminAccess(request);
+  let author_name = parsed.data.authorName;
+  let author_badge: string | null = null;
+  let author_avatar: string | null = null;
+  let author_title: string | null = null;
+  if (identity) {
+    author_name = identity.name;
+    author_badge = identity.badge;
+    const { data: profile } = await supabase.from("profiles").select("display_name, title, avatar_url").eq("email", identity.email.toLowerCase()).maybeSingle();
+    if (profile?.display_name) author_name = profile.display_name;
+    author_avatar = profile?.avatar_url ?? identity.avatar;
+    author_title = profile?.title ?? null;
+  }
+
+  // Comments appear instantly: no manual approval step. Automated guards
+  // (spam word filter + rate limiter) plus the owner-only hide panel are the
+  // safety net.
   const { error } = await supabase.from("comments").insert({
     update_id: parsed.data.updateId,
     parent_id: parsed.data.parentId ?? null,
-    author_name: parsed.data.authorName,
+    author_name,
     body: parsed.data.body,
     status: "approved",
+    author_badge,
+    author_avatar,
+    author_title,
   });
   if (error) return NextResponse.json({ error: "Gagal menyimpan komentar." }, { status: 500 });
-  return NextResponse.json({ ok: true }, { status: 201 });
+  return NextResponse.json({ ok: true, identity: identity ? { badge: identity.badge, name: author_name } : null }, { status: 201 });
 }

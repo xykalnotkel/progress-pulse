@@ -1,8 +1,8 @@
-import { getSupabasePublic } from "@/lib/supabase";
+import { getSupabasePublic, getSupabaseAdmin } from "@/lib/supabase";
 import { getBadgeForEmail, isAdminEmail } from "@/lib/auth";
 import type { AuthorBadge } from "@/lib/types";
 
-export type AdminIdentity = { email: string; badge: AuthorBadge; name: string; isOwner: boolean };
+export type AdminIdentity = { email: string; badge: AuthorBadge; name: string; isOwner: boolean; avatar: string | null };
 
 function displayName(user: { email?: string; user_metadata?: Record<string, unknown> }): string {
   const fullName = user.user_metadata?.full_name;
@@ -11,11 +11,6 @@ function displayName(user: { email?: string; user_metadata?: Record<string, unkn
   return fallback.slice(0, 48) || "Tim";
 }
 
-/**
- * Returns the authenticated writer identity (email, comment badge, display
- * name) when the request belongs to the owner or a listed team member,
- * or `false` otherwise.
- */
 export async function requestHasAdminAccess(request: Request): Promise<AdminIdentity | false> {
   const supabase = getSupabasePublic();
   const header = request.headers.get("authorization");
@@ -25,8 +20,42 @@ export async function requestHasAdminAccess(request: Request): Promise<AdminIden
   if (error) return false;
 
   const email = data.user?.email;
-  const badge = getBadgeForEmail(email);
-  if (!email || !badge) return false;
+  if (!email) return false;
 
-  return { email, badge, name: displayName(data.user as { email?: string; user_metadata?: Record<string, unknown> }), isOwner: isAdminEmail(email) };
+  const isOwner = isAdminEmail(email);
+  let badge: AuthorBadge | null = isOwner ? "XyDev" : null;
+  if (!badge) {
+    const admin = getSupabaseAdmin();
+    try {
+      let tm: { email: string } | null = null;
+      if (admin) {
+        const { data } = await admin.from("team_members").select("email").eq("email", email.toLowerCase()).maybeSingle();
+        tm = data ?? null;
+      }
+      if (tm?.email) badge = "XyTeam";
+    } catch {
+      badge = getBadgeForEmail(email); // env fallback
+    }
+  }
+
+  if (!badge) return false;
+
+  let avatar: string | null = null;
+  const admin = getSupabaseAdmin();
+  try {
+    if (admin) {
+      const { data } = await admin.from("profiles").select("avatar_url").eq("email", email.toLowerCase()).maybeSingle();
+      avatar = data?.avatar_url ?? null;
+    }
+  } catch {
+    // non-fatal
+  }
+
+  return {
+    email,
+    badge,
+    name: displayName(data.user as { email?: string; user_metadata?: Record<string, unknown> }),
+    isOwner,
+    avatar,
+  };
 }

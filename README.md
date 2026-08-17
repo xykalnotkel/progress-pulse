@@ -23,8 +23,12 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Google login protected admin control room
 - Server-controlled `created_at` timestamps
 - Cloudinary signed client upload for admin and server upload route for automation
-- An AI ingestion API that can create apps, make progress posts, upload media, and (optionally) generate a title/description draft, documented on the [AI docs page](/docs/ai)
+- An AI ingestion API that can create apps, make progress posts, upload media, attach contributor emails, and (optionally) generate a title/description draft, documented on the [AI docs page](/docs/ai)
 - Cloudinary media delivered optimized automatically: compression (`q_auto`) and WebP/AVIF (`f_auto`) baked into stored URLs
+- Contributors per update rendered as overlapping avatar stack; resolves in real time from the profiles table
+- Human-readable AI docs at [/docs/ai](/docs/ai), share bar (X, Facebook, WhatsApp, Telegram, TikTok) on every update
+- Custom error / 404 / loading pages with branded skeleton loaders and shimmer image fade-in
+- Admin route middleware: no-store, noindex, X-Robots-Tag for the protected control room
 - Legal pages: [Terms](/terms), [Privacy](/privacy), [Cookies](/cookies), [Disclaimer](/disclaimer)
 - Security headers, MIME allowlist on uploads, and a secret-scan CI job
 
@@ -162,7 +166,7 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 - Likes are stored in a `likes` table with row level security: anyone may count and add, no one may remove. The UI remembers each browser so one like per visitor.
 - The included rate limiter is a lightweight in-memory guard for development. Before a high-traffic public launch, add Cloudflare Turnstile and provider-level rate limiting / WAF rules.
 
-> Existing projects: run `supabase/migrations/001_likes.sql`, `supabase/migrations/002_comment_threads_and_reactions.sql`, and `supabase/migrations/003_profiles_and_avatars.sql` in the Supabase SQL Editor. Fresh setups get everything from `supabase/schema.sql`.
+> Existing projects: apply migrations 001 through 004 in order via the Supabase SQL Editor. Fresh setups get everything from `supabase/schema.sql`.
 
 ## Deploying to Vercel
 

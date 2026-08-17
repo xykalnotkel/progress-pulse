@@ -21,6 +21,23 @@ export type CommentReaction = "membantu" | "setuju" | "terima kasih";
 
 export type AuthorBadge = "XyDev" | "XyTeam";
 
+export type ProfileLink = { label: string; url: string };
+
+/**
+ * Public profile data (selectable by anyone). Returned by the profile API
+ * and rendered both on admin replies and on the contributor stack.
+ */
+export type PublicProfile = {
+  email: string;
+  display_name: string | null;
+  title: string | null;
+  avatar_url: string | null;
+  banner_url: string | null;
+  bio: string | null;
+  links: ProfileLink[];
+  badge: AuthorBadge | null;
+};
+
 export type Comment = {
   id: string;
   update_id: string;
@@ -28,15 +45,20 @@ export type Comment = {
   author_name: string;
   author_badge?: AuthorBadge | null;
   author_avatar?: string | null;
+  author_title?: string | null;
   body: string;
   status?: "pending" | "approved" | "rejected";
   created_at: string;
   moderated_at?: string | null;
   moderated_by?: string | null;
-  /** One level of replies (approved only), attached by the server feed. */
   replies?: Comment[];
-  /** Reaction counts keyed by reaction name, attached by the server feed. */
   reactions?: Partial<Record<CommentReaction, number>>;
+};
+
+export type Contributor = {
+  email: string;
+  name: string;
+  avatar_url: string | null;
 };
 
 export type ProgressUpdate = {
@@ -52,6 +74,6 @@ export type ProgressUpdate = {
   app?: Pick<Project, "id" | "name" | "slug">;
   comment_count?: number;
   likes_count?: number;
-  /** Approved comments only, attached by the server feed. */
   comments?: Comment[];
+  contributors?: Contributor[];
 };

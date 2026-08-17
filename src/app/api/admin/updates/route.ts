@@ -5,9 +5,14 @@ import { requestHasAdminAccess } from "@/lib/request-auth";
 import { optimizeMediaList } from "@/lib/media";
 
 const payload = z.object({
-  appId: z.string().uuid(), title: z.string().trim().min(1).max(160), description: z.string().trim().max(5000).optional().nullable(),
-  status: z.enum(["planning", "building", "testing", "shipped"]), version: z.string().trim().max(40).optional().nullable(),
-  media: z.array(z.string().url()).max(12).default([]), isPublished: z.boolean().default(true),
+  appId: z.string().uuid(),
+  title: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(5000).optional().nullable(),
+  status: z.enum(["planning", "building", "testing", "shipped"]),
+  version: z.string().trim().max(40).optional().nullable(),
+  media: z.array(z.string().url()).max(12).default([]),
+  isPublished: z.boolean().default(true),
+  contributors: z.array(z.string().trim().toLowerCase().email()).max(8).optional().default([]),
 });
 
 export async function POST(request: Request) {
@@ -17,7 +22,16 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
   const input = parsed.data;
-  const { data, error } = await supabase.from("progress_updates").insert({ app_id: input.appId, title: input.title, description: input.description ?? null, status: input.status, version: input.version ?? null, media: optimizeMediaList(input.media), is_published: input.isPublished }).select().single();
+  const { data, error } = await supabase.from("progress_updates").insert({
+    app_id: input.appId,
+    title: input.title,
+    description: input.description ?? null,
+    status: input.status,
+    version: input.version ?? null,
+    media: optimizeMediaList(input.media),
+    is_published: input.isPublished,
+    contributors: input.contributors,
+  }).select().single();
   if (error) return NextResponse.json({ error: "Gagal menyimpan update." }, { status: 400 });
   return NextResponse.json(data, { status: 201 });
 }

@@ -1,6 +1,6 @@
 import { demoApps, demoUpdates } from "@/lib/demo-data";
 import { getSupabasePublic } from "@/lib/supabase";
-import type { Comment, CommentReaction, ProgressUpdate, Project } from "@/lib/types";
+import type { Comment, CommentReaction, Contributor, ProgressUpdate, Project } from "@/lib/types";
 import { REACTIONS } from "@/lib/constants";
 import { optimizeMediaList } from "@/lib/media";
 
@@ -8,19 +8,18 @@ function isDemoMode() {
   return process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !getSupabasePublic();
 }
 
-type UpdateWithStats = ProgressUpdate & { comments?: Comment[] };
+type UpdateWithStats = ProgressUpdate & { comments?: Comment[]; contributor_emails?: string[] };
 
-/** Nest flat approved comments into one level of threads and attach reaction counts. */
-function buildThreads(comments: Comment[], reactionsMap: Map<string, Partial<Record<CommentReaction, number>>>): Comment[] {
+const REACTIONS_LOCAL: CommentReaction[] = ["membantu", "setuju", "terima kasih"];
+
+function nest(comments: Comment[], reactionsMap: Map<string, Partial<Record<CommentReaction, number>>>): Comment[] {
   const byParent = new Map<string | null, Comment[]>();
   for (const comment of comments) {
-    const key = comment.parent_id;
-    const list = byParent.get(key) ?? [];
+    const list = byParent.get(comment.parent_id) ?? [];
     list.push(comment);
-    byParent.set(key, list);
+    byParent.set(comment.parent_id, list);
   }
-  const topLevel = byParent.get(null) ?? [];
-  return topLevel.map((comment) => ({
+  return (byParent.get(null) ?? []).map((comment) => ({
     ...comment,
     reactions: reactionsMap.get(comment.id) ?? {},
     replies: (byParent.get(comment.id) ?? []).map((reply) => ({
@@ -30,33 +29,21 @@ function buildThreads(comments: Comment[], reactionsMap: Map<string, Partial<Rec
   }));
 }
 
-/**
- * Attach real like counts, approved comment threads and comment reaction
- * counts to a list of updates.
- */
 async function attachStats(updates: UpdateWithStats[]) {
   const supabase = getSupabasePublic();
   if (!updates.length || !supabase) return updates;
 
   const ids = updates.map((update) => update.id);
 
-  const likesResult = await supabase
-    .from("progress_updates")
-    .select("id, likes(count)")
-    .in("id", ids);
+  const [likesResult, commentsResult] = await Promise.all([
+    supabase.from("progress_updates").select("id, likes(count)").in("id", ids),
+    supabase.from("comments").select("id, update_id, parent_id, author_name, author_badge, author_avatar, author_title, body, created_at").eq("status", "approved").in("update_id", ids).order("created_at", { ascending: true }),
+  ]);
 
   const likesMap = new Map<string, number>();
   for (const row of likesResult.data ?? []) {
-    const count = (row.likes as { count?: number }[] | undefined)?.[0]?.count ?? 0;
-    likesMap.set(row.id, count);
+    likesMap.set(row.id, (row.likes as { count?: number }[] | undefined)?.[0]?.count ?? 0);
   }
-
-  const commentsResult = await supabase
-    .from("comments")
-    .select("id, update_id, parent_id, author_name, author_badge, author_avatar, body, created_at")
-    .eq("status", "approved")
-    .in("update_id", ids)
-    .order("created_at", { ascending: true });
 
   const commentsByUpdate = new Map<string, Comment[]>();
   for (const comment of (commentsResult.data ?? []) as Comment[]) {
@@ -65,13 +52,10 @@ async function attachStats(updates: UpdateWithStats[]) {
     commentsByUpdate.set(comment.update_id, list);
   }
 
-  const allCommentIds = (commentsResult.data ?? []).map((comment: Comment) => comment.id);
+  const allCommentIds = (commentsResult.data ?? []).map((c: Comment) => c.id);
   const reactionsMap = new Map<string, Partial<Record<CommentReaction, number>>>();
   if (allCommentIds.length) {
-    const reactionsResult = await supabase
-      .from("comment_reactions")
-      .select("comment_id, reaction")
-      .in("comment_id", allCommentIds);
+    const reactionsResult = await supabase.from("comment_reactions").select("comment_id, reaction").in("comment_id", allCommentIds);
     for (const row of reactionsResult.data ?? []) {
       const counts = reactionsMap.get(row.comment_id) ?? {};
       counts[row.reaction as CommentReaction] = (counts[row.reaction as CommentReaction] ?? 0) + 1;
@@ -79,15 +63,32 @@ async function attachStats(updates: UpdateWithStats[]) {
     }
   }
 
+  // Resolve contributor emails via the profiles table. The DB column holds
+  // emails; the wire type exposes resolved Contributor objects.
+  const emails = new Set<string>();
+  for (const update of updates) for (const e of update.contributor_emails ?? []) emails.add(e);
+  const profileIndex = new Map<string, Contributor>();
+  if (emails.size) {
+    const { data } = await supabase.from("profiles").select("email, display_name, avatar_url").in("email", [...emails]);
+    for (const profile of data ?? []) {
+      const key = String(profile.email).toLowerCase();
+      profileIndex.set(key, { email: key, name: profile.display_name || key.split("@")[0] || "Tim", avatar_url: profile.avatar_url ?? null });
+    }
+  }
+
   return updates.map((update) => {
-    const flat = commentsByUpdate.get(update.id) ?? [];
-    const threads = buildThreads(flat, reactionsMap);
+    const threads = nest(commentsByUpdate.get(update.id) ?? [], reactionsMap);
+    const contributors = (update.contributor_emails ?? []).map((e) => {
+      const key = e.toLowerCase();
+      return profileIndex.get(key) ?? { email: key, name: key.split("@")[0] || "Tim", avatar_url: null };
+    });
     return {
       ...update,
       media: optimizeMediaList(update.media),
       likes_count: likesMap.get(update.id) ?? 0,
       comments: threads,
       comment_count: threads.length,
+      contributors,
     };
   });
 }
@@ -133,4 +134,4 @@ export async function getPublicFeed() {
   };
 }
 
-export { REACTIONS };
+export { REACTIONS_LOCAL as REACTIONS_FEED, REACTIONS };
