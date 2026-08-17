@@ -15,6 +15,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/api/admin") ||
+    pathname.startsWith("/api/media") ||
     pathname.startsWith("/api/me");
 
   if (!isProtected) return NextResponse.next();
@@ -27,5 +28,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/login", "/auth/:path*", "/api/admin/:path*", "/api/me"],
+  matcher: ["/admin/:path*", "/login", "/auth/:path*", "/api/admin/:path*", "/api/media/:path*", "/api/me"],
 };

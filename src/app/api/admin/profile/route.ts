@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { isConfiguredCloudinaryUrl, isSafeHttpsUrl } from "@/lib/url-validation";
 
-const link = z.object({ label: z.string().trim().min(1).max(24), url: z.string().url() });
+const httpsUrl = z.string().trim().refine(isSafeHttpsUrl, "URL HTTPS tidak valid.");
+const cloudinaryUrl = z.string().trim().refine(isConfiguredCloudinaryUrl, "Media Cloudinary tidak valid.");
+const link = z.object({ label: z.string().trim().min(1).max(24), url: httpsUrl });
 const payload = z.object({
   displayName: z.string().trim().min(1).max(48).optional(),
   title: z.string().trim().max(80).optional().nullable(),
-  avatarUrl: z.string().url().optional().nullable(),
-  bannerUrl: z.string().url().optional().nullable(),
+  avatarUrl: cloudinaryUrl.optional().nullable(),
+  bannerUrl: cloudinaryUrl.optional().nullable(),
   bio: z.string().trim().max(240).optional().nullable(),
   links: z.array(link).max(6).optional(),
 });

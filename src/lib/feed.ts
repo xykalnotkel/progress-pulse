@@ -1,11 +1,17 @@
+import "server-only";
+
 import { demoApps, demoUpdates } from "@/lib/demo-data";
-import { getSupabasePublic } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import type { Comment, CommentReaction, Contributor, ProgressUpdate, Project } from "@/lib/types";
 import { REACTIONS } from "@/lib/constants";
 import { optimizeMediaList } from "@/lib/media";
 
+function getFeedClient() {
+  return getSupabaseAdmin();
+}
+
 function isDemoMode() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !getSupabasePublic();
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !getFeedClient();
 }
 
 type UpdateWithStats = ProgressUpdate & { comments?: Comment[]; contributor_emails?: string[] };
@@ -30,7 +36,7 @@ function nest(comments: Comment[], reactionsMap: Map<string, Partial<Record<Comm
 }
 
 async function attachStats(updates: UpdateWithStats[]) {
-  const supabase = getSupabasePublic();
+  const supabase = getFeedClient();
   if (!updates.length || !supabase) return updates;
 
   const ids = updates.map((update) => update.id);
@@ -94,7 +100,7 @@ async function attachStats(updates: UpdateWithStats[]) {
 }
 
 export async function getPublicUpdateById(id: string) {
-  const supabase = getSupabasePublic();
+  const supabase = getFeedClient();
   if (isDemoMode()) {
     const update = demoUpdates.find((item) => item.id === id) ?? null;
     return update ?? null;
@@ -113,7 +119,7 @@ export async function getPublicUpdateById(id: string) {
 }
 
 export async function getPublicFeed() {
-  const supabase = getSupabasePublic();
+  const supabase = getFeedClient();
   if (isDemoMode()) return { apps: demoApps, updates: demoUpdates, isDemo: true };
 
   const [{ data: appRows }, { data: updateRows }] = await Promise.all([

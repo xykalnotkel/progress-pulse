@@ -20,15 +20,16 @@ const sections = [
       "XySpace Blog tidak menggunakan cookie iklan atau pelacakan pihak ketiga. Yang digunakan hanya untuk fungsi dasar:",
     ],
     list: [
-      "Sesi login Supabase (cookie auth) — hanya aktif saat Anda masuk sebagai pemilik/tim di halaman admin.",
+      "Sesi login Supabase (localStorage) — hanya aktif saat Anda masuk sebagai pemilik/tim di halaman admin.",
       "pulse-theme (localStorage) — menyimpan pilihan tema gelap/terang.",
-      "pp-liked dan pp-reacted (localStorage) — mencatat like/reaksi yang sudah Anda berikan agar tidak dobel, tanpa mengikat ke identitas.",
+      "xyspace-visitor-id (localStorage) — identifier acak untuk deduplikasi like/reaksi dan perlindungan anti-spam; tidak berisi nama atau email.",
+      "pp-liked dan pp-reacted (localStorage) — menyimpan status interaksi agar antarmuka tidak menawarkan aksi yang sama berulang kali.",
     ],
   },
   {
     heading: "3. Cookie Pihak Ketiga",
     paragraphs: [
-      "Saat Anda berinteraksi dengan layanan eksternal, pihak tersebut dapat menyimpan datanya sendiri: Google saat login (halaman admin), Cloudinary saat memuat media, dan Vercel sebagai infrastruktur hosting. Silakan merujuk pada kebijakan cookie masing-masing layanan.",
+      "Saat Anda berinteraksi dengan layanan eksternal, pihak tersebut dapat memproses data teknisnya sendiri: Google saat login, Cloudinary saat memuat media, Cloudflare Turnstile saat verifikasi anti-bot, dan Vercel sebagai infrastruktur hosting. Silakan merujuk pada kebijakan masing-masing layanan.",
     ],
   },
   {

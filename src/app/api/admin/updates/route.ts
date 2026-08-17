@@ -3,21 +3,24 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
 import { optimizeMediaList } from "@/lib/media";
+import { isConfiguredCloudinaryUrl } from "@/lib/url-validation";
 
+const cloudinaryUrl = z.string().trim().refine(isConfiguredCloudinaryUrl, "Media Cloudinary tidak valid.");
 const payload = z.object({
   appId: z.string().uuid(),
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(5000).optional().nullable(),
   status: z.enum(["planning", "building", "testing", "shipped"]),
   version: z.string().trim().max(40).optional().nullable(),
-  media: z.array(z.string().url()).max(12).default([]),
+  media: z.array(cloudinaryUrl).max(12).default([]),
   isPublished: z.boolean().default(true),
   contributors: z.array(z.string().trim().toLowerCase().email()).max(8).optional().default([]),
 });
 
 /** Create a progress update from the authenticated control room. */
 export async function POST(request: Request) {
-  if (!(await requestHasAdminAccess(request))) {
+  const identity = await requestHasAdminAccess(request);
+  if (!identity || !identity.isOwner) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

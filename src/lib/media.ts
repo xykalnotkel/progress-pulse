@@ -1,3 +1,5 @@
+import { isCloudinaryDeliveryUrl } from "@/lib/url-validation";
+
 /**
  * Media delivery helpers.
  *
@@ -11,7 +13,7 @@
  * through untouched.
  */
 export function optimizeMediaUrl(url: string): string {
-  if (!url || !url.includes("res.cloudinary.com")) return url;
+  if (!url || !isCloudinaryDeliveryUrl(url)) return url;
 
   const imageMarker = "/image/upload/";
   const videoMarker = "/video/upload/";

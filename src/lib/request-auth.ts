@@ -29,7 +29,12 @@ export async function requestHasAdminAccess(request: Request): Promise<AdminIden
     try {
       let tm: { email: string } | null = null;
       if (admin) {
-        const { data } = await admin.from("team_members").select("email").eq("email", email.toLowerCase()).maybeSingle();
+        const { data, error } = await admin
+          .from("team_members")
+          .select("email")
+          .eq("email", email.toLowerCase())
+          .maybeSingle();
+        if (error) throw error;
         tm = data ?? null;
       }
       if (tm?.email) badge = "XyTeam";

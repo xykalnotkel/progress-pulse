@@ -14,8 +14,7 @@ const endpoints = [
   { method: "GET", path: "/api/ingest/schema", auth: "tidak", use: "Panduan mesin-readable untuk agent AI" },
   { method: "POST", path: "/api/ingest", auth: "Bearer token", use: "Aksi utama: create_app, create_update, draft_copy" },
   { method: "POST", path: "/api/ingest/upload", auth: "Bearer token", use: "Upload media (multipart) ke Cloudinary" },
-  { method: "POST", path: "/api/media/signature", auth: "Bearer token atau admin", use: "Signature upload Cloudinary untuk client" },
-];
+  ];
 
 const createAppFields = [
   ["name", "string", "wajib", "Nama aplikasi, maks 80 karakter"],

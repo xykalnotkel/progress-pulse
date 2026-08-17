@@ -18,11 +18,11 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Public timeline with progress status, real Cloudinary media, real likes, and threaded comments
 - Comment threads: visitors can reply, and react with "Membantu / Setuju / Terima kasih"
 - Owner and team replies carry badges: **XyDev** (owner) and **XyTeam** (collaborators)
-- Public comments appear instantly (no manual approval), with an owner-only hide/show panel and team replies inside the admin control room
-- Real like counters persisted in the database (additive only, one per browser)
+- Public comments appear instantly with invisible Turnstile verification, durable rate limits, and an owner-only hide/show panel
+- Real like counters persisted in the database with server-side anonymous deduplication
 - Google login protected admin control room
 - Server-controlled `created_at` timestamps
-- Cloudinary signed client upload for admin and server upload route for automation
+- Server-validated Cloudinary uploads with file-signature checks for admin and automation
 - An AI ingestion API that can create apps, make progress posts, upload media, attach contributor emails, and (optionally) generate a title/description draft, documented on the [AI docs page](/docs/ai)
 - Cloudinary media delivered optimized automatically: compression (`q_auto`) and WebP/AVIF (`f_auto`) baked into stored URLs
 - Contributors per update rendered as overlapping avatar stack; resolves in real time from the profiles table
@@ -30,13 +30,11 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 - Custom error / 404 / loading pages with branded skeleton loaders and shimmer image fade-in
 - Admin route middleware: no-store, noindex, X-Robots-Tag for the protected control room
 - Legal pages: [Terms](/terms), [Privacy](/privacy), [Cookies](/cookies), [Disclaimer](/disclaimer)
-- Security headers, MIME allowlist on uploads, and a secret-scan CI job
+- Security headers, invisible Turnstile, byte-signature media validation, durable database rate limits, and secret-scan CI
 
-## Security first
+## Security model
 
-Do **not** commit `.env.local`, tokens, or cloud secrets. Never copy credentials that were shared in a chat or temporary note into the project.
-
-If a real credential has ever been shared as plain text, rotate/revoke it in its provider dashboard before launch. This especially applies to source-control, deployment, Cloudflare, email, and Cloudinary secrets.
+Public reads and writes are mediated by validated server routes. Sensitive Supabase tables are closed to browser roles, admin capabilities are role-checked, media is verified from its byte signature, and CI scans every change for accidental secret exposure. Runtime configuration stays outside the repository.
 
 ## Local setup
 
@@ -68,7 +66,7 @@ Demo mode is active when `NEXT_PUBLIC_DEMO_MODE=true` (or Supabase variables are
 
 Add the cloud name, API key, and API secret as server environment variables. Never prefix the API secret with `NEXT_PUBLIC_`.
 
-The admin upload flow obtains a short-lived signed payload from `/api/media/signature`, then uploads the file directly to Cloudinary. The browser never sees your API secret.
+The admin sends media to the authenticated `/api/media/upload` route. The server checks the real file signature, size, purpose, and role before forwarding it to Cloudinary. The browser never receives the Cloudinary API secret.
 
 ### 3. AI / automation token
 
@@ -157,22 +155,22 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 
 ## Public comments, replies and reactions
 
-- Public visitors can submit a name and comment. **Comments appear instantly** — no manual approval step. Automated guards: spam-word filter and a rate limiter.
-- Anyone can reply to a comment and react with **Membantu**, **Setuju**, or **Terima kasih** (additive, one per browser).
+- Public visitors can submit a name and comment. **Comments appear instantly** after invisible Turnstile verification; spam filtering and a durable database limiter provide additional controls.
+- Anyone can reply to a comment and react with **Membantu**, **Setuju**, or **Terima kasih**; duplicate reactions are blocked server-side.
 - Comment threads are served with the public feed, shown inline on the Updates page, the detail pages, and the shareable update URLs.
 - Owner replies (badge **XyDev**) and collaborator replies (badge **XyTeam**) appear instantly; configure collaborators with `TEAM_EMAILS`.
 - Owner and team can customize their profile (display name, title, avatar) from the control room; the profile is shown on their replies.
 - The owner (top admin) can hide/show any comment from the control room — the safety valve after a comment has appeared publicly.
-- Likes are stored in a `likes` table with row level security: anyone may count and add, no one may remove. The UI remembers each browser so one like per visitor.
-- The included rate limiter is a lightweight in-memory guard for development. Before a high-traffic public launch, add Cloudflare Turnstile and provider-level rate limiting / WAF rules.
+- Likes and reactions are written only through server routes. Browser roles cannot query their internal hashes, and database constraints reject duplicate visitor interactions.
+- Public write limits are stored atomically in Supabase, so they remain effective across serverless instances. Like and reaction duplicates are rejected by database constraints; provider-level WAF rules remain an additional defense layer.
 
-> Existing projects: apply migrations 001 through 004 in order via the Supabase SQL Editor. Fresh setups get everything from `supabase/schema.sql`.
+> Existing projects: apply migrations 001 through 006 in order via the Supabase SQL Editor. Migration 005 and 006 harden private data and public write endpoints. Fresh setups get everything from `supabase/schema.sql`.
 
 ## Deploying to Vercel
 
 1. Push this folder to your GitHub repository (after ensuring no `.env.local` is tracked).
 2. Import it into Vercel.
-3. Add every value from `.env.example` as environment variables in Vercel, including `NEXT_PUBLIC_SITE_URL` (your final domain) and `ADMIN_EMAIL`.
+3. Add every required value from `.env.example` as environment variables in Vercel, including `NEXT_PUBLIC_SITE_URL`, `ADMIN_EMAIL`, `ABUSE_HASH_SECRET`, and the Turnstile site/secret keys.
 4. Set `NEXT_PUBLIC_DEMO_MODE=false`.
 5. Add the final Vercel domain to Supabase Google redirect URLs.
 6. Test: Google login, a Cloudinary media upload, a public comment through moderation, a like, an AI upload, and an AI post creation.
@@ -194,4 +192,5 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 | `/api/ingest/schema` | AI API guide |
 | `/api/ingest` | Secure AI action endpoint |
 | `/api/ingest/upload` | Secure AI media upload endpoint |
+| `/api/media/upload` | Authenticated owner/team media upload with byte-signature validation |
 

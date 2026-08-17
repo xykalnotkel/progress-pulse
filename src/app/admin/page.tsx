@@ -24,7 +24,6 @@ import {
   X,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
-import { optimizeMediaUrl } from "@/lib/media";
 import type { AuthorBadge, Comment, ProfileLink, Project, UpdateStatus } from "@/lib/types";
 
 type Notice = { kind: "success" | "error"; text: string } | null;
@@ -143,10 +142,10 @@ export default function AdminPage() {
     if (!token) return;
     async function load() {
       setApprovedComments(await fetchComments("approved"));
-      setHiddenComments(await fetchComments("rejected"));
+      setHiddenComments(isOwner ? await fetchComments("rejected") : []);
     }
     load();
-  }, [fetchComments, token]);
+  }, [fetchComments, isOwner, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -237,20 +236,17 @@ export default function AdminPage() {
     const setBusy = field === "avatar" ? setAvatarBusy : setBannerBusy;
     setBusy(true);
     try {
-      const signResponse = await fetch("/api/media/signature", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ purpose: `profile-${field}` }),
-      });
-      const signed = await signResponse.json();
-      if (!signResponse.ok) throw new Error(signed.error ?? "Tidak bisa menyiapkan upload.");
       const form = new FormData();
-      form.append("file", file); form.append("api_key", signed.apiKey); form.append("timestamp", String(signed.timestamp)); form.append("signature", signed.signature); form.append("folder", signed.folder);
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/auto/upload`, { method: "POST", body: form });
+      form.append("file", file);
+      form.append("purpose", `profile-${field}`);
+      const response = await fetch("/api/media/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
       const uploaded = await response.json();
-      if (!response.ok) throw new Error(uploaded.error?.message ?? "Upload gagal.");
-      const optimized = optimizeMediaUrl(uploaded.secure_url);
-      if (field === "avatar") setProfileAvatar(optimized); else setProfileBanner(optimized);
+      if (!response.ok) throw new Error(uploaded.error ?? "Upload gagal.");
+      if (field === "avatar") setProfileAvatar(uploaded.url); else setProfileBanner(uploaded.url);
       setNotice({ kind: "success", text: `${field === "avatar" ? "Avatar" : "Banner"} terupload. Klik Simpan profil.` });
     } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Upload gagal." }); }
     finally { setBusy(false); event.target.value = ""; }
@@ -350,15 +346,17 @@ export default function AdminPage() {
     const file = event.target.files?.[0]; if (!file || !token) return;
     setNotice(null); setSaving("upload");
     try {
-      const signResponse = await fetch("/api/media/signature", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-      const signed = await signResponse.json();
-      if (!signResponse.ok) throw new Error(signed.error ?? "Tidak bisa menyiapkan upload.");
       const form = new FormData();
-      form.append("file", file); form.append("api_key", signed.apiKey); form.append("timestamp", String(signed.timestamp)); form.append("signature", signed.signature); form.append("folder", signed.folder);
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/auto/upload`, { method: "POST", body: form });
+      form.append("file", file);
+      form.append("purpose", "update");
+      const response = await fetch("/api/media/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
       const uploaded = await response.json();
-      if (!response.ok) throw new Error(uploaded.error?.message ?? "Upload Cloudinary gagal.");
-      setUpdateForm((current) => ({ ...current, media: optimizeMediaUrl(uploaded.secure_url) }));
+      if (!response.ok) throw new Error(uploaded.error ?? "Upload Cloudinary gagal.");
+      setUpdateForm((current) => ({ ...current, media: uploaded.url }));
       setNotice({ kind: "success", text: "Media terupload (otomatis dikompresi, WebP)." });
     } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Upload gagal." }); }
     finally { setSaving(null); event.target.value = ""; }
@@ -387,12 +385,12 @@ export default function AdminPage() {
       <div className="admin-layout">
         <aside className="admin-side">
           <div className="admin-label">CONTROL ROOM</div>
-          <a className="admin-nav-active" href="#new-update"><FilePlus2 size={16} /> Post update</a>
-          <a href="#comments"><MessageSquareText size={16} /> Kelola komentar <span>{approvedComments?.length ?? 0}</span></a>
-          <a href="#new-app"><Layers3 size={16} /> Kelola aplikasi <span>{apps.length}</span></a>
+          {isOwner ? <a className="admin-nav-active" href="#new-update"><FilePlus2 size={16} /> Post update</a> : null}
+          <a className={isOwner ? "" : "admin-nav-active"} href="#comments"><MessageSquareText size={16} /> Kelola komentar <span>{approvedComments?.length ?? 0}</span></a>
+          {isOwner ? <a href="#new-app"><Layers3 size={16} /> Kelola aplikasi <span>{apps.length}</span></a> : null}
           <a href="#profile"><UserRound size={16} /> Profile tim</a>
           {isOwner ? <a href="#team"><Users size={16} /> XyTeam <span>{teamList.length}</span></a> : null}
-          <a href="#updates-list"><Layers3 size={16} /> Daftar update <span>{updatesList?.length ?? 0}</span></a>
+          {isOwner ? <a href="#updates-list"><Layers3 size={16} /> Daftar update <span>{updatesList?.length ?? 0}</span></a> : null}
           <a href="/docs/ai"><WandSparkles size={16} /> AI integration <ExternalLink size={13} /></a>
           <div className="admin-tip"><Sparkles size={17} /><p><b>Tip singkat</b>Komentar publik tampil langsung — owner bisa sembunyikan yang toxic; team balas dengan badge XyTeam dari profil custom mereka.</p></div>
         </aside>
@@ -413,7 +411,7 @@ export default function AdminPage() {
 
           {notice ? <div className={`admin-notice ${notice.kind}`}><CheckCircle2 size={17} />{notice.text}</div> : null}
 
-          <div className="admin-panels">
+          {isOwner ? <div className="admin-panels">
             <form className="admin-panel update-panel" id="new-update" onSubmit={createUpdate}>
               <div className="panel-heading">
                 <div><p className="admin-kicker">NEW PROGRESS LOG</p><h2>Publish an update</h2></div>
@@ -467,7 +465,7 @@ export default function AdminPage() {
                 {apps.length ? apps.map((app) => <div key={app.id}><span>{app.name.slice(0, 1)}</span><b>{app.name}</b><code>/{app.slug}</code></div>) : <small>Belum ada aplikasi. Buat yang pertama di sini.</small>}
               </div>
             </form>
-          </div>
+          </div> : null}
 
           <section className="admin-panel moderation-panel" id="comments">
             <div className="panel-heading">
@@ -476,7 +474,7 @@ export default function AdminPage() {
             </div>
             <div className="mod-tabs" role="tablist" aria-label="Filter komentar">
               <button className={commentTab === "approved" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("approved")}>Aktif <span>{approvedComments?.length ?? 0}</span></button>
-              <button className={commentTab === "rejected" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("rejected")}>Disembunyikan <span>{hiddenComments?.length ?? 0}</span></button>
+              {isOwner ? <button className={commentTab === "rejected" ? "mod-tab mod-tab-active" : "mod-tab"} onClick={() => setCommentTab("rejected")}>Disembunyikan <span>{hiddenComments?.length ?? 0}</span></button> : null}
             </div>
             {activeComments === null ? <p className="moderation-empty">Memuat komentar...</p>
               : activeComments.length === 0 ? <p className="moderation-empty">{commentTab === "approved" ? "Belum ada komentar. Komentar publik muncul di sini otomatis — tanpa perlu disetujui." : "Tidak ada komentar yang disembunyikan."}</p>
@@ -500,7 +498,7 @@ export default function AdminPage() {
                         {isOwner ? <button className={comment.status === "rejected" ? "mod-approve" : "mod-reject"} disabled={moderatingId === comment.id} onClick={() => moderateComment(comment.id, comment.status === "rejected" ? "approved" : "rejected")}>
                           {comment.status === "rejected" ? <><Eye size={14} /> Tampilkan</> : <><EyeOff size={14} /> Sembunyikan</>}
                         </button> : null}
-                        <button className="mod-reply" disabled={replyBusy === comment.id} onClick={() => { setReplyOpenId(replyOpenId === comment.id ? null : comment.id); setReplyBody(""); }}><MessageSquareText size={14} /> Balas</button>
+                        {!comment.parent_id ? <button className="mod-reply" disabled={replyBusy === comment.id} onClick={() => { setReplyOpenId(replyOpenId === comment.id ? null : comment.id); setReplyBody(""); }}><MessageSquareText size={14} /> Balas</button> : null}
                       </div>
                       {replyOpenId === comment.id ? (
                         <div className="reply-form admin-reply-form">

@@ -3,11 +3,15 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
 
 export async function GET(request: Request) {
-  if (!(await requestHasAdminAccess(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const identity = await requestHasAdminAccess(request);
+  if (!identity) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const status = new URL(request.url).searchParams.get("status") ?? "pending";
+  const status = new URL(request.url).searchParams.get("status") ?? "approved";
   if (!["pending", "approved", "rejected"].includes(status)) {
     return NextResponse.json({ error: "Status tidak valid." }, { status: 400 });
+  }
+  if (!identity.isOwner && status !== "approved") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const supabase = getSupabaseAdmin();

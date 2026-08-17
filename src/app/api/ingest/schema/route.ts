@@ -6,7 +6,6 @@ export function GET() {
     endpoints: {
       createOrDraft: "POST /api/ingest",
       uploadMedia: "POST /api/ingest/upload (multipart: file, appSlug)",
-      signedUpload: "POST /api/media/signature",
     },
     actions: {
       create_app: { name: "string", slug: "kebab-case", tagline: "optional", description: "optional", links: [{ label: "Website", url: "https://..." }] },

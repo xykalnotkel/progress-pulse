@@ -20,9 +20,9 @@ const sections = [
       "Kami mengumpulkan data dalam tiga kelompok:",
     ],
     list: [
-      "Data yang Anda kirim: nama dan isi komentar atau balasan, serta reaksi/like yang Anda berikan. Like dan reaksi dicatat tanpa identitas pribadi — satu per browser.",
+      "Data yang Anda kirim: nama dan isi komentar atau balasan, serta reaksi/like yang Anda berikan. Like dan reaksi dikaitkan ke identifier browser acak dan hash berkunci untuk mencegah duplikasi, bukan ke nama atau email.",
       "Data akun admin/tim: jika Anda masuk sebagai pemilik atau kolaborator, kami menyimpan email dan nama profil dari akun Google Anda untuk menampilkan badge XyDev/XyTeam pada balasan.",
-      "Data teknis: alamat IP dan user-agent dari log server (dipakai untuk keamanan dan pembatasan laju permintaan), serta token sesi login yang tersimpan di browser Anda.",
+      "Data teknis: alamat IP dan user-agent dapat tercatat di log infrastruktur. Untuk pembatasan laju dan deduplikasi, aplikasi hanya menyimpan hash berkunci yang diturunkan dari alamat IP dan identifier browser acak, bukan alamat IP mentah, serta token sesi login yang tersimpan di browser admin/tim.",
     ],
   },
   {
@@ -48,6 +48,7 @@ const sections = [
       "Vercel — hosting aplikasi dan log infrastruktur.",
       "Supabase — database, autentikasi Google, dan penyimpanan komentar/like.",
       "Cloudinary — penyimpanan dan pengiriman media (gambar/video).",
+      "Cloudflare Turnstile — verifikasi anti-bot pada komentar anonim.",
       "Google — autentikasi login pemilik/tim.",
       "OpenAI — opsional, hanya untuk menghasilkan draf copy saat fitur draft_copy digunakan.",
     ],

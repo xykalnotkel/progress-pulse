@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -22,6 +22,10 @@ import {
 import { REACTIONS, REACTION_LABELS } from "@/lib/constants";
 import type { AuthorBadge, Comment, CommentReaction, Contributor, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { getVisitorId } from "@/lib/visitor-id";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
+
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 type View = "home" | "apps" | "updates" | "about";
 
@@ -165,7 +169,7 @@ function CommentReactionBar({ comment, isDemo }: { comment: Comment; isDemo: boo
         const response = await fetch("/api/comment-reactions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ commentId: comment.id, reaction }),
+          body: JSON.stringify({ commentId: comment.id, reaction, visitorId: getVisitorId() }),
         });
         if (!response.ok) return;
       } catch { return; }
@@ -204,10 +208,22 @@ function CommentReplyBox({ comment, updateId, isDemo, onReplyCreated, preselecte
   const [name, setName] = useState(preselectedName);
   const [body, setBody] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const needsHumanCheck = !isDemo && !hideNameInput;
+
+  function resetHumanCheck() {
+    setTurnstileToken(null);
+    turnstileRef.current?.reset();
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (body.trim().length < 2 || (!hideNameInput && name.trim().length < 2)) return;
+    if (needsHumanCheck && !turnstileToken) {
+      setState("error");
+      return;
+    }
     setState("sending");
     if (isDemo) {
       await new Promise((resolve) => setTimeout(resolve, 450));
@@ -221,7 +237,15 @@ function CommentReplyBox({ comment, updateId, isDemo, onReplyCreated, preselecte
       const response = await fetch("/api/comments", {
         method: "POST",
         headers,
-        body: JSON.stringify({ updateId, parentId: comment.id, authorName: name || preselectedName, body }),
+        body: JSON.stringify({
+          updateId,
+          parentId: comment.id,
+          authorName: name || preselectedName,
+          body,
+          visitorId: getVisitorId(),
+          turnstileToken: turnstileToken ?? undefined,
+          website: "",
+        }),
       });
       if (!response.ok) throw new Error("Unable to send reply");
       onReplyCreated({
@@ -230,9 +254,13 @@ function CommentReplyBox({ comment, updateId, isDemo, onReplyCreated, preselecte
         badge: writerBadge,
         repliedTo: comment.author_name,
       });
+      resetHumanCheck();
       setOpen(false); setBody(""); setState("success");
       setTimeout(() => setState("idle"), 2500);
-    } catch { setState("error"); }
+    } catch {
+      resetHumanCheck();
+      setState("error");
+    }
   }
 
   return (
@@ -245,11 +273,22 @@ function CommentReplyBox({ comment, updateId, isDemo, onReplyCreated, preselecte
           <div className="reply-context">Membalas ke <strong>@{comment.author_name}</strong></div>
           {!hideNameInput && <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required />}
           <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder={`Tulis balasan untuk @${comment.author_name.split(" ")[0]}...`} required />
+          {needsHumanCheck && turnstileSiteKey ? (
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={turnstileSiteKey}
+              options={{ action: "comment_reply", size: "invisible", execution: "render", language: "id" }}
+              onSuccess={setTurnstileToken}
+              onExpire={() => setTurnstileToken(null)}
+              onError={() => setTurnstileToken(null)}
+            />
+          ) : null}
+          {needsHumanCheck && !turnstileSiteKey ? <p className="comment-notice error">Proteksi anti-bot belum tersedia.</p> : null}
           {state === "error" && <p className="comment-notice error">Belum bisa mengirim balasan. Coba lagi.</p>}
           {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Balasan terkirim.</p>}
           <div className="reply-actions">
             <button type="button" className="reply-cancel" onClick={() => setOpen(false)}>Batal</button>
-            <button className="reply-send" disabled={state === "sending"} type="submit">{state === "sending" ? "Mengirim..." : "Kirim balasan"}</button>
+            <button className="reply-send" disabled={state === "sending" || (needsHumanCheck && !turnstileToken)} type="submit">{state === "sending" ? "Mengirim..." : "Kirim balasan"}</button>
           </div>
         </form>
       )}
@@ -335,6 +374,9 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
   const [name, setName] = useState(writerIdentity?.name ?? "");
   const [body, setBody] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const needsHumanCheck = !isDemo && !isWriterAdmin;
   const [likedIds, setLikedIds] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     try { return JSON.parse(window.localStorage.getItem("pp-liked") ?? "[]") as string[]; } catch { return []; }
@@ -352,13 +394,22 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
     setLocalComments((list) => [...list, local]);
   }
 
+  function resetHumanCheck() {
+    setTurnstileToken(null);
+    turnstileRef.current?.reset();
+  }
+
   async function toggleLike() {
     if (isLiked(update.id)) return;
     if (!isDemo) {
       try {
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
-        const response = await fetch("/api/likes", { method: "POST", headers, body: JSON.stringify({ updateId: update.id }) });
+        const response = await fetch("/api/likes", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ updateId: update.id, visitorId: getVisitorId() }),
+        });
         if (!response.ok) return;
       } catch { return; }
     }
@@ -370,6 +421,10 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
     event.preventDefault();
     const finalName = writerIdentity?.name ?? name;
     if (body.trim().length < 2 || (!isWriterAdmin && finalName.trim().length < 2)) return;
+    if (needsHumanCheck && !turnstileToken) {
+      setState("error");
+      return;
+    }
     setState("sending");
     const sentName = finalName.trim();
     if (isDemo) {
@@ -384,13 +439,24 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
       const response = await fetch("/api/comments", {
         method: "POST",
         headers,
-        body: JSON.stringify({ updateId: update.id, authorName: isWriterAdmin ? "" : sentName, body }),
+        body: JSON.stringify({
+          updateId: update.id,
+          authorName: isWriterAdmin ? "" : sentName,
+          body,
+          visitorId: getVisitorId(),
+          turnstileToken: turnstileToken ?? undefined,
+          website: "",
+        }),
       });
       if (!response.ok) throw new Error("Unable to send comment");
       const result = await response.json().catch(() => null);
       setLocalComments((list) => [...list, { name: result?.identity?.name ?? sentName, body: body.trim(), when: "baru saja", badge: result?.identity?.badge ?? writerIdentity?.badge ?? null, avatar: writerIdentity?.avatar ?? null, isLocal: true }]);
+      resetHumanCheck();
       setBody(""); setState("success");
-    } catch { setState("error"); }
+    } catch {
+      resetHumanCheck();
+      setState("error");
+    }
   }
 
   return (
@@ -462,8 +528,19 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
                 </div>
               )}
               <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required />
+              {needsHumanCheck && turnstileSiteKey ? (
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={turnstileSiteKey}
+                  options={{ action: "comment", size: "invisible", execution: "render", language: "id" }}
+                  onSuccess={setTurnstileToken}
+                  onExpire={() => setTurnstileToken(null)}
+                  onError={() => setTurnstileToken(null)}
+                />
+              ) : null}
+              {needsHumanCheck && !turnstileSiteKey ? <p className="comment-notice error">Proteksi anti-bot belum tersedia.</p> : null}
             </div>
-            <button className="send-button" disabled={state === "sending"} type="submit">{state === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button>
+            <button className="send-button" disabled={state === "sending" || (needsHumanCheck && !turnstileToken)} type="submit">{state === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button>
           </form>
         </div>
       </div>

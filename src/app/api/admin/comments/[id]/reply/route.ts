@@ -21,12 +21,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
 
-  const { data: parent } = await supabase.from("comments").select("id, update_id").eq("id", id).maybeSingle();
-  if (!parent) return NextResponse.json({ error: "Komentar yang dibalas tidak ditemukan." }, { status: 404 });
+  const { data: parent } = await supabase
+    .from("comments")
+    .select("id, update_id, parent_id")
+    .eq("id", id)
+    .eq("status", "approved")
+    .maybeSingle();
+  if (!parent || parent.parent_id !== null) {
+    return NextResponse.json({ error: "Komentar yang dibalas tidak ditemukan." }, { status: 404 });
+  }
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, avatar_url")
+    .select("display_name, title, avatar_url")
     .eq("email", identity.email)
     .maybeSingle();
 
@@ -38,6 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       author_name: profile?.display_name || identity.name,
       author_badge: identity.badge,
       author_avatar: profile?.avatar_url ?? null,
+      author_title: profile?.title ?? null,
       body: parsed.data.body,
       status: "approved",
     })
