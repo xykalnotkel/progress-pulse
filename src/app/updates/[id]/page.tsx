@@ -99,9 +99,9 @@ function ContributorStack({ contributors }: { contributors: Contributor[] }) {
     <div className="contributor-stack" aria-label={`${contributors.length} kontributor`}>
       {contributors.slice(0, 5).map((c, idx) => (
         c.avatar_url ? (
-          <Image key={c.email + idx} className="contributor-avatar" src={c.avatar_url} alt={c.name} title={c.name} width={22} height={22} />
+          <Image key={`${c.name}-${idx}`} className="contributor-avatar" src={c.avatar_url} alt={c.name} title={c.name} width={22} height={22} />
         ) : (
-          <span key={c.email + idx} className="contributor-avatar contributor-avatar-fallback" title={c.name}>{c.name.slice(0, 1).toUpperCase()}</span>
+          <span key={`${c.name}-${idx}`} className="contributor-avatar contributor-avatar-fallback" title={c.name}>{c.name.slice(0, 1).toUpperCase()}</span>
         )
       ))}
       {contributors.length > 5 && <span className="contributor-more">+{contributors.length - 5}</span>}

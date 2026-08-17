@@ -85,7 +85,7 @@ async function attachStats(updates: UpdateWithStats[]): Promise<ProgressUpdate[]
     const { data } = await supabase.from("profiles").select("email, display_name, avatar_url").in("email", [...emails]);
     for (const profile of data ?? []) {
       const key = String(profile.email).toLowerCase();
-      profileIndex.set(key, { email: key, name: profile.display_name || key.split("@")[0] || "Tim", avatar_url: profile.avatar_url ?? null });
+      profileIndex.set(key, { name: profile.display_name || "Tim", avatar_url: profile.avatar_url ?? null });
     }
   }
 
@@ -93,7 +93,7 @@ async function attachStats(updates: UpdateWithStats[]): Promise<ProgressUpdate[]
     const threads = nest(commentsByUpdate.get(update.id) ?? [], reactionsMap);
     const contributors = (update.contributors ?? []).map((e) => {
       const key = e.toLowerCase();
-      return profileIndex.get(key) ?? { email: key, name: key.split("@")[0] || "Tim", avatar_url: null };
+      return profileIndex.get(key) ?? { name: "Kontributor", avatar_url: null };
     });
     return {
       ...update,

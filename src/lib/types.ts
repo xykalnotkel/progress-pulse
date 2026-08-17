@@ -56,7 +56,6 @@ export type Comment = {
 };
 
 export type Contributor = {
-  email: string;
   name: string;
   avatar_url: string | null;
 };
