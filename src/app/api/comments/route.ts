@@ -25,6 +25,11 @@ export async function POST(request: Request) {
 
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
+
+  // Only accept comments on updates that are actually published.
+  const { data: update } = await supabase.from("progress_updates").select("id").eq("id", parsed.data.updateId).eq("is_published", true).maybeSingle();
+  if (!update) return NextResponse.json({ error: "Update tidak ditemukan." }, { status: 404 });
+
   const { error } = await supabase.from("comments").insert({ update_id: parsed.data.updateId, author_name: parsed.data.authorName, body: parsed.data.body, status: "pending" });
   if (error) return NextResponse.json({ error: "Gagal menyimpan komentar." }, { status: 500 });
   return NextResponse.json({ ok: true, moderation: "pending" }, { status: 201 });

@@ -1,4 +1,4 @@
-import type { ProgressUpdate, Project } from "@/lib/types";
+import type { Comment, ProgressUpdate, Project } from "@/lib/types";
 
 export const demoApps: Project[] = [
   {
@@ -36,6 +36,15 @@ export const demoApps: Project[] = [
   },
 ];
 
+const orbitComments: Comment[] = [
+  { id: "cm-1", update_id: "update-01", author_name: "Nadia", body: "The hierarchy here feels incredibly clear. Can’t wait to try the category drill-down.", status: "approved", created_at: "2026-08-16T10:00:00.000Z" },
+  { id: "cm-2", update_id: "update-01", author_name: "Dimas", body: "Love the direction. The calm detail is a really nice touch.", status: "approved", created_at: "2026-08-16T13:20:00.000Z" },
+];
+
+const frameComments: Comment[] = [
+  { id: "cm-3", update_id: "update-02", author_name: "Sari", body: "Search speed is what I was waiting for. Nice work.", status: "approved", created_at: "2026-08-15T09:05:00.000Z" },
+];
+
 export const demoUpdates: ProgressUpdate[] = [
   {
     id: "update-01",
@@ -48,7 +57,9 @@ export const demoUpdates: ProgressUpdate[] = [
     is_published: true,
     created_at: "2026-08-16T09:35:00.000Z",
     app: { id: "app-orbit", name: "Orbit", slug: "orbit" },
-    comment_count: 12,
+    comment_count: orbitComments.length,
+    likes_count: 47,
+    comments: orbitComments,
   },
   {
     id: "update-02",
@@ -61,7 +72,9 @@ export const demoUpdates: ProgressUpdate[] = [
     is_published: true,
     created_at: "2026-08-14T14:10:00.000Z",
     app: { id: "app-frame", name: "Frame", slug: "frame" },
-    comment_count: 8,
+    comment_count: frameComments.length,
+    likes_count: 31,
+    comments: frameComments,
   },
   {
     id: "update-03",
@@ -74,11 +87,10 @@ export const demoUpdates: ProgressUpdate[] = [
     is_published: true,
     created_at: "2026-08-12T04:20:00.000Z",
     app: { id: "app-signal", name: "Signal", slug: "signal" },
-    comment_count: 5,
+    comment_count: 0,
+    likes_count: 18,
+    comments: [],
   },
 ];
 
-export const demoComments = [
-  { id: "cm-1", author_name: "Nadia", body: "The hierarchy here feels incredibly clear. Can’t wait to try the category drill-down.", created_at: "2026-08-16T10:00:00.000Z" },
-  { id: "cm-2", author_name: "Dimas", body: "Love the direction. The calm detail is a really nice touch.", created_at: "2026-08-16T13:20:00.000Z" },
-];
+export const demoComments = orbitComments;

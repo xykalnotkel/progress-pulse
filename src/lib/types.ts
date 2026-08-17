@@ -17,6 +17,17 @@ export type Project = {
   created_at: string;
 };
 
+export type Comment = {
+  id: string;
+  update_id: string;
+  author_name: string;
+  body: string;
+  status?: "pending" | "approved" | "rejected";
+  created_at: string;
+  moderated_at?: string | null;
+  moderated_by?: string | null;
+};
+
 export type ProgressUpdate = {
   id: string;
   app_id: string;
@@ -29,13 +40,7 @@ export type ProgressUpdate = {
   created_at: string;
   app?: Pick<Project, "id" | "name" | "slug">;
   comment_count?: number;
-};
-
-export type Comment = {
-  id: string;
-  update_id: string;
-  author_name: string;
-  body: string;
-  status: "pending" | "approved" | "rejected";
-  created_at: string;
+  likes_count?: number;
+  /** Approved comments only, attached by the server feed. */
+  comments?: Comment[];
 };

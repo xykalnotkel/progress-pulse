@@ -1,17 +1,28 @@
 # XySpace Blog — Progress Log
 
+[![CI](https://github.com/xykalnotkel/progress-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/xykalnotkel/progress-pulse/actions/workflows/ci.yml)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Tailwind](https://img.shields.io/badge/Tailwind-4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com)
+[![Cloudinary](https://img.shields.io/badge/Cloudinary-3448C5?logo=cloudinary&logoColor=white)](https://cloudinary.com)
+[![Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com)
+
 A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **Cloudinary**, and an optional AI publishing API.
 
 ## What is included
 
 - Glossy purple / black / white visual system with dark and light modes
 - Multiple apps, each with its own external link and slug
-- Public timeline with progress status, real Cloudinary media, likes, and comments
-- Public comments are placed in a **pending** moderation state before appearing
+- Public timeline with progress status, real Cloudinary media, real likes, and comments
+- Public comments are placed in a **pending** moderation state before appearing, with an approve/reject panel inside the admin control room
+- Real like counters persisted in the database (additive only, one per browser)
 - Google login protected admin control room
 - Server-controlled `created_at` timestamps
 - Cloudinary signed client upload for admin and server upload route for automation
 - An AI ingestion API that can create apps, make progress posts, upload media, and (optionally) generate a title/description draft
+- Security headers, MIME allowlist on uploads, and a secret-scan CI job
 
 ## Security first
 
@@ -136,29 +147,36 @@ curl -X POST https://YOUR-DOMAIN/api/ingest \
 
 This returns a JSON draft with `title`, `description`, `status`, and optional `version`; you can review it or send it back using `create_update`.
 
-## Public comment moderation
+## Public comments and likes
 
-- Public visitors can submit a name and comment.
-- The API saves it as `pending`; it is not publicly visible yet.
-- Approve/reject a comment with `PATCH /api/admin/comments/:id` from an authenticated owner session.
+- Public visitors can submit a name and comment. The API saves it as `pending`; it is not publicly visible yet.
+- Approved comments are served with the public feed and shown on update cards, the detail pages, and the shareable update URLs.
+- Likes are stored in a `likes` table with row level security: anyone may count and add, no one may remove. The UI remembers each browser so one like per visitor.
+- Approve/reject from the admin control room (`/admin` -> Moderasi komentar) or with `PATCH /api/admin/comments/:id` from an authenticated owner session.
 - The included rate limiter is a lightweight in-memory guard for development. Before a high-traffic public launch, add Cloudflare Turnstile and provider-level rate limiting / WAF rules.
+
+> Existing projects: run `supabase/migrations/001_likes.sql` in the Supabase SQL Editor once to add the `likes` table. Fresh setups get everything from `supabase/schema.sql`.
 
 ## Deploying to Vercel
 
-1. Push this folder to a new **private** GitHub repository (after ensuring no `.env.local` is tracked).
+1. Push this folder to your GitHub repository (after ensuring no `.env.local` is tracked).
 2. Import it into Vercel.
-3. Add every value from `.env.example` as environment variables in Vercel.
+3. Add every value from `.env.example` as environment variables in Vercel, including `NEXT_PUBLIC_SITE_URL` (your final domain) and `ADMIN_EMAIL`.
 4. Set `NEXT_PUBLIC_DEMO_MODE=false`.
 5. Add the final Vercel domain to Supabase Google redirect URLs.
-6. Test: Google login, a Cloudinary media upload, public comment, AI upload, and AI post creation.
+6. Test: Google login, a Cloudinary media upload, a public comment through moderation, a like, an AI upload, and an AI post creation.
 
 ## Main routes
 
 | Route | Use |
 | --- | --- |
 | `/` | Public progress log |
+| `/updates/[id]` | Shareable update page with comments |
 | `/login` | Google owner login |
-| `/admin` | Add apps, Cloudinary media, and updates |
+| `/admin` | Add apps, Cloudinary media, updates, and moderate comments |
+| `/api/likes` | Public like endpoint |
+| `/api/comments` | Public comment submission (goes to moderation) |
+| `/api/admin/comments` | Owner-only list of pending comments |
 | `/api/ingest/schema` | AI API guide |
 | `/api/ingest` | Secure AI action endpoint |
 | `/api/ingest/upload` | Secure AI media upload endpoint |

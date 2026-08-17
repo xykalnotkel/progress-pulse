@@ -20,7 +20,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import type { ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
+import type { Comment, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
 
 type View = "home" | "apps" | "updates" | "about";
 
@@ -112,13 +112,12 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
     return window.localStorage.getItem("pulse-theme") !== "light";
   });
   const [selected, setSelected] = useState<ProgressUpdate | null>(null);
-  const [liked, setLiked] = useState<string[]>([]);
-  const [comments, setComments] = useState<Record<string, { name: string; body: string; when: string }[]>>({
-    "update-01": [
-      { name: "Nadia", body: "The hierarchy here feels incredibly clear. Can’t wait to try the category drill-down.", when: "2 jam lalu" },
-      { name: "Dimas", body: "Love the direction. The calm detail is a really nice touch.", when: "1 jam lalu" },
-    ],
+  const [likedIds, setLikedIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(window.localStorage.getItem("pp-liked") ?? "[]") as string[]; } catch { return []; }
   });
+  const [likeDelta, setLikeDelta] = useState<Record<string, number>>({});
+  const [comments, setComments] = useState<Record<string, { name: string; body: string; when: string }[]>>({});
   const [commentName, setCommentName] = useState("");
   const [commentBody, setCommentBody] = useState("");
   const [commentState, setCommentState] = useState<"idle" | "sending" | "success" | "error">("idle");
@@ -130,7 +129,34 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
     [activeApp, updates],
   );
 
-  const likes = (id: string) => 28 + (id.charCodeAt(id.length - 1) % 17) + (liked.includes(id) ? 1 : 0);
+  const isLiked = (id: string) => likedIds.includes(id);
+  const likeCount = (update: ProgressUpdate) => (update.likes_count ?? 0) + (likeDelta[update.id] ?? 0);
+
+  async function toggleLike(update: ProgressUpdate) {
+    if (isLiked(update.id)) return;
+    if (!isDemo) {
+      try {
+        const response = await fetch("/api/likes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ updateId: update.id }),
+        });
+        if (!response.ok) return;
+      } catch {
+        return;
+      }
+    }
+    setLikedIds((list) => {
+      const next = [...list, update.id];
+      window.localStorage.setItem("pp-liked", JSON.stringify(next));
+      return next;
+    });
+    setLikeDelta((delta) => ({ ...delta, [update.id]: (delta[update.id] ?? 0) + 1 }));
+  }
+
+  const toDisplayComment = (comment: Comment) => ({ name: comment.author_name, body: comment.body, when: dateText(comment.created_at) });
+  const commentList = (update: ProgressUpdate) => [...(update.comments ?? []).map(toDisplayComment), ...(comments[update.id] ?? [])];
+  const commentCount = (update: ProgressUpdate) => commentList(update).length;
 
   async function submitComment(event: React.FormEvent) {
     event.preventDefault();
@@ -225,7 +251,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
             const meta = statusMeta[update.status];
             return <article className={`update-card update-card-${index + 1}`} key={update.id}>
               <button type="button" className="update-art-button" onClick={() => { setSelected(update); setCommentState("idle"); }} aria-label={`Read ${update.title}`}><PreviewArt update={update} /><span className={`status-pill ${meta.className}`}><i />{meta.label}</span></button>
-              <div className="update-body"><div className="update-meta"><span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span><span>{dateText(update.created_at)}</span></div><h3>{update.title}</h3><p>{update.description}</p><div className="update-footer"><button type="button" className={liked.includes(update.id) ? "reaction reaction-liked" : "reaction"} onClick={() => setLiked((list) => list.includes(update.id) ? list.filter((id) => id !== update.id) : [...list, update.id])}><Heart size={15} fill={liked.includes(update.id) ? "currentColor" : "none"} /> {likes(update.id)}</button><button type="button" className="reaction" onClick={() => { setSelected(update); setCommentState("idle"); }}><MessageCircle size={15} /> {update.comment_count ?? 0}</button><Link className="read-link" href={`/updates/${update.id}`}>View update <ArrowUpRight size={15} /></Link></div></div>
+              <div className="update-body"><div className="update-meta"><span className="update-app"><AppMark slug={update.app?.slug ?? "orbit"} size="small" /> {update.app?.name}</span><span>{dateText(update.created_at)}</span></div><h3>{update.title}</h3><p>{update.description}</p><div className="update-footer"><button type="button" className={isLiked(update.id) ? "reaction reaction-liked" : "reaction"} onClick={() => toggleLike(update)}><Heart size={15} fill={isLiked(update.id) ? "currentColor" : "none"} /> {likeCount(update)}</button><button type="button" className="reaction" onClick={() => { setSelected(update); setCommentState("idle"); }}><MessageCircle size={15} /> {update.comment_count ?? 0}</button><Link className="read-link" href={`/updates/${update.id}`}>View update <ArrowUpRight size={15} /></Link></div></div>
             </article>;
           })}
         </div>
@@ -236,7 +262,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
       {view === "about" && <section className="closing" id="about"><div className="closing-orb" /><p className="eyebrow">STAY IN THE LOOP</p><h2>More soon.<br /><em>Always building.</em></h2><p>Follow the work as it takes shape, one release at a time.</p><a className="button button-primary" href="mailto:hello@example.com">Get in touch <ArrowUpRight size={16} /></a></section>}
       <footer><Link className="brand" href="/"><img className="brand-logo" src="/images/xyspace-logo.webp" alt="" /><span>XySpace <span className="brand-blog">Blog</span></span></Link><span>© 2026 — made with intent</span><div><Link href="/">Back to home ↑</Link></div></footer>
 
-      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}><section className="update-modal" role="dialog" aria-modal="true" aria-label="Progress update" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={19} /></button><div className="modal-visual"><PreviewArt update={selected} /><span className={`status-pill ${statusMeta[selected.status].className}`}><i />{statusMeta[selected.status].label}</span></div><div className="modal-content"><div className="modal-app"><AppMark slug={selected.app?.slug ?? "orbit"} size="small" /> {selected.app?.name} <span /> {dateText(selected.created_at)} at {timeText(selected.created_at)} {selected.version && <><span /> {selected.version}</>}</div><h2>{selected.title}</h2><p className="modal-description">{selected.description}</p><div className="modal-actions"><button type="button" className={liked.includes(selected.id) ? "reaction reaction-liked" : "reaction"} onClick={() => setLiked((list) => list.includes(selected.id) ? list.filter((id) => id !== selected.id) : [...list, selected.id])}><Heart size={15} fill={liked.includes(selected.id) ? "currentColor" : "none"} /> {likes(selected.id)} likes</button><span><Sparkles size={14} /> Built in public</span></div><div className="comments"><div className="comments-heading"><h3>Comments <span>{(comments[selected.id]?.length ?? selected.comment_count ?? 0)}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>{(comments[selected.id] ?? []).map((comment, index) => <div className="comment" key={`${comment.name}-${index}`}><div className="comment-avatar">{comment.name.slice(0, 1)}</div><div><div><strong>{comment.name}</strong><span>{comment.when}</span></div><p>{comment.body}</p></div></div>)}{commentState === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar dikirim untuk moderasi.</p>}{commentState === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}<form className="comment-form" onSubmit={submitComment}><div><input value={commentName} onChange={(event) => setCommentName(event.target.value)} maxLength={48} placeholder="Nama kamu" required /><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required /></div><button className="send-button" disabled={commentState === "sending"} type="submit">{commentState === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button></form></div></div></section></div>}
+      {selected && <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelected(null)}><section className="update-modal" role="dialog" aria-modal="true" aria-label="Progress update" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={19} /></button><div className="modal-visual"><PreviewArt update={selected} /><span className={`status-pill ${statusMeta[selected.status].className}`}><i />{statusMeta[selected.status].label}</span></div><div className="modal-content"><div className="modal-app"><AppMark slug={selected.app?.slug ?? "orbit"} size="small" /> {selected.app?.name} <span /> {dateText(selected.created_at)} at {timeText(selected.created_at)} {selected.version && <><span /> {selected.version}</>}</div><h2>{selected.title}</h2><p className="modal-description">{selected.description}</p><div className="modal-actions"><button type="button" className={isLiked(selected.id) ? "reaction reaction-liked" : "reaction"} onClick={() => toggleLike(selected)}><Heart size={15} fill={isLiked(selected.id) ? "currentColor" : "none"} /> {likeCount(selected)} likes</button><span><Sparkles size={14} /> Built in public</span></div><div className="comments"><div className="comments-heading"><h3>Comments <span>{commentCount(selected)}</span></h3><p>Keep it kind, useful, and on-topic.</p></div>{commentList(selected).map((comment, index) => <div className="comment" key={`${comment.name}-${index}`}><div className="comment-avatar">{comment.name.slice(0, 1)}</div><div><div><strong>{comment.name}</strong><span>{comment.when}</span></div><p>{comment.body}</p></div></div>)}{commentState === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Komentar dikirim untuk moderasi.</p>}{commentState === "error" && <p className="comment-notice error">Belum bisa mengirim komentar. Coba lagi.</p>}<form className="comment-form" onSubmit={submitComment}><div><input value={commentName} onChange={(event) => setCommentName(event.target.value)} maxLength={48} placeholder="Nama kamu" required /><textarea value={commentBody} onChange={(event) => setCommentBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required /></div><button className="send-button" disabled={commentState === "sending"} type="submit">{commentState === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button></form></div></div></section></div>}
     </main>
   );
 }
