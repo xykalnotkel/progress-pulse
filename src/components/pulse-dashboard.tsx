@@ -16,6 +16,7 @@ import {
   Menu,
   Moon,
   Plus,
+  Search,
   Send,
   Sparkles,
   Sun,
@@ -567,6 +568,8 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
   const [darkOverride, setDarkOverride] = useState<boolean | null>(null);
   const dark = darkOverride ?? storedDark;
   const [navOpen, setNavOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeStatus, setActiveStatus] = useState<UpdateStatus | "all">("all");
   const [writer, setWriter] = useState<WriterIdentity | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
@@ -597,10 +600,15 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
     return () => { active = false; };
   }, [isDemo]);
 
-  const filteredUpdates = useMemo(
-    () => updates.filter((update) => activeApp === "all" || update.app?.slug === activeApp),
-    [activeApp, updates],
-  );
+  const filteredUpdates = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase("id-ID");
+    return updates.filter((update) => {
+      const matchesApp = activeApp === "all" || update.app?.slug === activeApp;
+      const matchesStatus = activeStatus === "all" || update.status === activeStatus;
+      const haystack = `${update.title} ${update.description ?? ""} ${update.app?.name ?? ""} ${update.version ?? ""}`.toLocaleLowerCase("id-ID");
+      return matchesApp && matchesStatus && (!query || haystack.includes(query));
+    });
+  }, [activeApp, activeStatus, searchQuery, updates]);
 
   return (
     <main className="pulse-shell" data-theme={dark ? "dark" : "light"}>
@@ -684,6 +692,14 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
           <button className={activeApp === "all" ? "filter-active" : ""} onClick={() => setActiveApp("all")}>All work <span>{updates.length}</span></button>
           {apps.map((app) => <button key={app.id} className={activeApp === app.slug ? "filter-active" : ""} onClick={() => setActiveApp(app.slug)}><AppMark slug={app.slug} size="small" /> {app.name}</button>)}
         </div>
+        <div className="update-discovery">
+          <label className="update-search"><Search size={15} /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Cari judul, aplikasi, versi..." aria-label="Cari update" /></label>
+          <div className="status-filter" aria-label="Filter status">
+            {(["all", "planning", "building", "testing", "shipped"] as const).map((status) => (
+              <button type="button" key={status} className={activeStatus === status ? "status-filter-active" : ""} onClick={() => setActiveStatus(status)}>{status === "all" ? "Semua status" : statusMeta[status].label}</button>
+            ))}
+          </div>
+        </div>
         <div className="updates-list">
           {filteredUpdates.map((update) => (
             <UpdatePost key={update.id} update={update} isDemo={isDemo} sessionToken={sessionToken} writerIdentity={writer} isWriterAdmin={Boolean(writer)} />
@@ -713,6 +729,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
             <Link href="/docs/ai">AI API docs</Link>
             <a href="/api/ingest/schema" target="_blank" rel="noreferrer">Schema JSON</a>
             <Link href="/updates">Progress feed</Link>
+            <a href="/feed.xml">RSS feed</a>
           </div>
           <div className="footer-col">
             <h4>Legal</h4>

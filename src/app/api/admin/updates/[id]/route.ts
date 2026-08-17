@@ -3,20 +3,76 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
 import { revalidatePublicContent } from "@/lib/revalidation";
+import { optimizeMediaList } from "@/lib/media";
+import { isConfiguredCloudinaryUrl } from "@/lib/url-validation";
 
-/**
- * Owner-only update management: DELETE removes a progress update and
- * cascades to its comments, likes and comment reactions via foreign keys.
- */
+const updateId = z.string().uuid();
+const cloudinaryUrl = z.string().trim().refine(isConfiguredCloudinaryUrl, "Media Cloudinary tidak valid.");
+const payload = z.object({
+  appId: z.string().uuid(),
+  title: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(5000).optional().nullable(),
+  status: z.enum(["planning", "building", "testing", "shipped"]),
+  version: z.string().trim().max(40).optional().nullable(),
+  media: z.array(cloudinaryUrl).max(12).default([]),
+  isPublished: z.boolean(),
+  contributors: z.array(z.string().trim().toLowerCase().email()).max(8).default([]),
+});
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const identity = await requestHasAdminAccess(request);
+  if (!identity || !identity.isOwner) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const parsedId = updateId.safeParse((await params).id);
+  const parsed = payload.safeParse(await request.json().catch(() => null));
+  if (!parsedId.success || !parsed.success) {
+    return NextResponse.json({ error: "Data update tidak valid." }, { status: 400 });
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
+  }
+
+  const input = parsed.data;
+  const { data, error } = await supabase
+    .from("progress_updates")
+    .update({
+      app_id: input.appId,
+      title: input.title,
+      description: input.description ?? null,
+      status: input.status,
+      version: input.version ?? null,
+      media: optimizeMediaList(input.media),
+      is_published: input.isPublished,
+      contributors: input.contributors,
+    })
+    .eq("id", parsedId.data)
+    .select()
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: "Gagal memperbarui update." }, { status: 400 });
+  if (!data) return NextResponse.json({ error: "Update tidak ditemukan." }, { status: 404 });
+
+  revalidatePublicContent(parsedId.data);
+  return NextResponse.json(data);
+}
+
+/** Delete an update and its dependent comments, likes, and reactions. */
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const identity = await requestHasAdminAccess(request);
-  if (!identity || !identity.isOwner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!identity || !identity.isOwner) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const parsed = z.string().uuid().safeParse((await params).id);
+  const parsed = updateId.safeParse((await params).id);
   if (!parsed.success) return NextResponse.json({ error: "ID tidak valid." }, { status: 400 });
 
   const supabase = getSupabaseAdmin();
-  if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
+  if (!supabase) {
+    return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
+  }
 
   const { error } = await supabase.from("progress_updates").delete().eq("id", parsed.data);
   if (error) return NextResponse.json({ error: "Gagal menghapus update." }, { status: 400 });

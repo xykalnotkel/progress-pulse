@@ -147,6 +147,32 @@ export async function getPublicFeed() {
   };
 }
 
+export async function getPublicRssUpdates() {
+  const supabase = getFeedClient();
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !supabase) return demoUpdates.slice(0, 50);
+
+  const { data, error } = await supabase
+    .from("progress_updates")
+    .select("id, app_id, title, description, status, version, media, is_published, created_at, updated_at, app:apps(id,name,slug)")
+    .eq("is_published", true)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error("Gagal memuat RSS update.");
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    app_id: String(row.app_id),
+    title: String(row.title),
+    description: row.description ? String(row.description) : null,
+    status: row.status as ProgressUpdate["status"],
+    version: row.version ? String(row.version) : null,
+    media: Array.isArray(row.media) ? row.media.map(String) : [],
+    is_published: Boolean(row.is_published),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+    app: (Array.isArray(row.app) ? row.app[0] : row.app) ?? undefined,
+  }));
+}
+
 export async function getPublicSitemapUpdates() {
   const supabase = getFeedClient();
   if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !supabase) {

@@ -31,13 +31,14 @@ type ManagedComment = Comment & { update?: { id: string; title: string; app?: { 
 type Profile = { email: string; display_name: string | null; title: string | null; avatar_url: string | null; banner_url: string | null; bio: string | null; links: ProfileLink[]; badge: AuthorBadge | null };
 type TeamMember = { email: string; added_at: string; added_by: string | null };
 type AdminUpdate = {
-  id: string; title: string; status: string; version: string | null; is_published: boolean;
+  id: string; title: string; description: string | null; status: UpdateStatus;
+  version: string | null; media: string[]; is_published: boolean;
   created_at: string; contributors: string[] | null;
   app: { id: string; name: string; slug: string } | null;
 };
 
 const blankApp = { name: "", slug: "", tagline: "", description: "", website: "" };
-const blankUpdate = { appId: "", title: "", description: "", status: "building" as UpdateStatus, version: "", media: "", contributorsText: "" };
+const blankUpdate = { appId: "", title: "", description: "", status: "building" as UpdateStatus, version: "", media: "", contributorsText: "", isPublished: true };
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -106,6 +107,7 @@ export default function AdminPage() {
   const [teamEmail, setTeamEmail] = useState("");
   const [teamBusy, setTeamBusy] = useState(false);
   const [updatesList, setUpdatesList] = useState<AdminUpdate[] | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -317,12 +319,32 @@ export default function AdminPage() {
     finally { setSaving(null); }
   }
 
+  function startEditing(update: AdminUpdate) {
+    setEditingId(update.id);
+    setUpdateForm({
+      appId: update.app?.id ?? "",
+      title: update.title,
+      description: update.description ?? "",
+      status: update.status,
+      version: update.version ?? "",
+      media: update.media?.[0] ?? "",
+      contributorsText: (update.contributors ?? []).join(", "),
+      isPublished: update.is_published,
+    });
+    document.getElementById("new-update")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setUpdateForm((current) => ({ ...blankUpdate, appId: current.appId }));
+  }
+
   async function createUpdate(event: FormEvent) {
     event.preventDefault(); setNotice(null); setSaving("update");
     try {
       const contributors = updateForm.contributorsText.split(/[\s,]+/).map((c) => c.trim().toLowerCase()).filter((c) => /.+@.+\..+/.test(c));
-      const response = await fetch("/api/admin/updates", {
-        method: "POST",
+      const response = await fetch(editingId ? `/api/admin/updates/${editingId}` : "/api/admin/updates", {
+        method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
         body: JSON.stringify({
           appId: updateForm.appId,
@@ -332,12 +354,23 @@ export default function AdminPage() {
           version: updateForm.version || null,
           media: updateForm.media ? [updateForm.media] : [],
           contributors,
+          isPublished: updateForm.isPublished,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Gagal menyimpan update.");
+      const list = await fetch("/api/admin/updates", { headers: { Authorization: `Bearer ${token ?? ""}` } });
+      if (list.ok) setUpdatesList((await list.json()) as AdminUpdate[]);
       setUpdateForm((current) => ({ ...blankUpdate, appId: current.appId }));
-      setNotice({ kind: "success", text: "Update + kontributor tersimpan. Tanggal dibuat otomatis oleh server." });
+      setEditingId(null);
+      setNotice({
+        kind: "success",
+        text: editingId
+          ? "Update berhasil diperbarui."
+          : updateForm.isPublished
+            ? "Update diterbitkan."
+            : "Draft update tersimpan.",
+      });
     } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Gagal menyimpan update." }); }
     finally { setSaving(null); }
   }
@@ -414,8 +447,8 @@ export default function AdminPage() {
           {isOwner ? <div className="admin-panels">
             <form className="admin-panel update-panel" id="new-update" onSubmit={createUpdate}>
               <div className="panel-heading">
-                <div><p className="admin-kicker">NEW PROGRESS LOG</p><h2>Publish an update</h2></div>
-                <span><span className="small-live" /> public</span>
+                <div><p className="admin-kicker">{editingId ? "EDIT PROGRESS LOG" : "NEW PROGRESS LOG"}</p><h2>{editingId ? "Update a post" : "Publish an update"}</h2></div>
+                <span><span className="small-live" /> {updateForm.isPublished ? "public" : "draft"}</span>
               </div>
               <label>Untuk aplikasi
                 <select required value={updateForm.appId} onChange={(e) => setUpdateForm({ ...updateForm, appId: e.target.value })}>
@@ -446,7 +479,14 @@ export default function AdminPage() {
                 </label>
               </div>
               {updateForm.media ? <div className="media-ready"><CloudUpload size={14} /> Preview siap untuk {selectedApp?.name ?? "aplikasi"} (auto WebP + q_auto)</div> : null}
-              <button className="publish-button" disabled={saving !== null || !apps.length} type="submit">{saving === "update" ? "Menerbitkan..." : <><Plus size={17} /> Publish update</>}</button>
+              <label className="draft-toggle">
+                <input type="checkbox" checked={updateForm.isPublished} onChange={(e) => setUpdateForm({ ...updateForm, isPublished: e.target.checked })} />
+                <span><b>{updateForm.isPublished ? "Publikasikan" : "Simpan sebagai draft"}</b><small>{updateForm.isPublished ? "Langsung tampil di feed publik." : "Hanya terlihat di control room."}</small></span>
+              </label>
+              <div className="update-form-actions">
+                {editingId ? <button className="reply-cancel" type="button" onClick={cancelEditing}>Batal edit</button> : null}
+                <button className="publish-button" disabled={saving !== null || !apps.length} type="submit">{saving === "update" ? "Menyimpan..." : <><Plus size={17} /> {editingId ? "Simpan perubahan" : updateForm.isPublished ? "Publish update" : "Simpan draft"}</>}</button>
+              </div>
             </form>
 
             <form className="admin-panel app-panel" id="new-app" onSubmit={createApp}>
@@ -582,11 +622,13 @@ export default function AdminPage() {
                       </div>
                       <div className="updates-list-cell updates-list-cell-meta">
                         <span className={`status-pill status-${update.status}`}><i />{update.status}</span>
+                        {!update.is_published ? <span className="draft-chip">draft</span> : null}
                         {update.version ? <span className="update-version-mini">{update.version}</span> : null}
                         {(update.contributors ?? []).length ? <span className="contributor-chip">{update.contributors!.length} kontributor</span> : null}
                       </div>
                       <div className="updates-list-cell updates-list-cell-actions">
-                        <Link className="mod-reply" href={`/updates/${update.id}`} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Lihat</Link>
+                        {update.is_published ? <Link className="mod-reply" href={`/updates/${update.id}`} target="_blank" rel="noreferrer"><ExternalLink size={13} /> Lihat</Link> : null}
+                        <button type="button" className="mod-reply" onClick={() => startEditing(update)}><FilePlus2 size={13} /> Edit</button>
                         <button
                           type="button"
                           className="mod-reject"

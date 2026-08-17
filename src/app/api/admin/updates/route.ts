@@ -76,7 +76,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await supabase
     .from("progress_updates")
-    .select("id, title, status, version, is_published, created_at, contributors, app:apps(id, name, slug)")
+    .select("id, title, description, status, version, media, is_published, created_at, contributors, app:apps(id, name, slug)")
     .order("created_at", { ascending: false })
     .limit(200);
 

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   authors: [{ name: "XySpace" }],
   creator: "XySpace",
   publisher: "XySpace",
-  alternates: { canonical: "/" },
+  alternates: { canonical: "/", types: { "application/rss+xml": "/feed.xml" } },
   icons: { icon: [{ url: "/icon.png", type: "image/png", sizes: "512x512" }, { url: "/favicon.ico", type: "image/x-icon" }], shortcut: "/favicon.ico", apple: "/icon.png" },
   manifest: "/manifest.webmanifest",
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },

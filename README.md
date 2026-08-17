@@ -15,13 +15,14 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 
 - Glossy purple / black / white visual system with dark and light modes
 - Multiple apps, each with its own external link and slug
-- Public timeline with progress status, real Cloudinary media, real likes, and threaded comments
+- Searchable public timeline with app/status filters, Cloudinary media, real likes, and threaded comments
 - Comment threads: visitors can reply, and react with "Membantu / Setuju / Terima kasih"
 - Owner and team replies carry badges: **XyDev** (owner) and **XyTeam** (collaborators)
 - Public comments appear instantly with invisible Turnstile verification, durable rate limits, and an owner-only hide/show panel
 - Real like counters persisted in the database with server-side anonymous deduplication
 - Google login protected admin control room
-- Server-controlled `created_at` timestamps
+- Owner workflow for create, edit, draft/publish, and delete with server-controlled timestamps
+- RSS 2.0 feed at `/feed.xml` for release readers and aggregators
 - Server-validated Cloudinary uploads with file-signature checks for admin and automation
 - An AI ingestion API that can create apps, make progress posts, upload media, attach contributor emails, and (optionally) generate a title/description draft, documented on the [AI docs page](/docs/ai)
 - Cloudinary media delivered optimized automatically: compression (`q_auto`) and WebP/AVIF (`f_auto`) baked into stored URLs
@@ -181,8 +182,9 @@ This returns a JSON draft with `title`, `description`, `status`, and optional `v
 | --- | --- |
 | `/` | Public progress log |
 | `/updates/[id]` | Shareable update page with comments |
+| `/feed.xml` | RSS 2.0 feed for published updates |
 | `/login` | Google owner login |
-| `/admin` | Add apps, Cloudinary media, updates, and moderate comments |
+| `/admin` | Create/edit drafts and published updates, manage media, team, and comments |
 | `/docs/ai` | Human-readable AI integration docs |
 | `/api/likes` | Public like endpoint |
 | `/api/comments` | Public comment / reply submission (goes to moderation) |
