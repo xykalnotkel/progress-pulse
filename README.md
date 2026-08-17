@@ -15,9 +15,9 @@ A public, multi-app progress dashboard. Built with **Next.js**, **Supabase**, **
 
 ## Security first
 
-Do **not** commit `.env.local`, tokens, or cloud secrets. The attached credential file used during the initial brief is deliberately not used by this app and must not be copied into the project.
+Do **not** commit `.env.local`, tokens, or cloud secrets. Never copy credentials that were shared in a chat or temporary note into the project.
 
-If a real credential was shared in a chat or uploaded as plain text, rotate/revoke it in its provider dashboard before launch. This especially applies to source-control, deployment, Cloudflare, email, and Cloudinary secrets.
+If a real credential has ever been shared as plain text, rotate/revoke it in its provider dashboard before launch. This especially applies to source-control, deployment, Cloudflare, email, and Cloudinary secrets.
 
 ## Local setup
 
