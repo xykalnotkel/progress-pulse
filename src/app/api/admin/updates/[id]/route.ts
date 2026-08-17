@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { revalidatePublicContent } from "@/lib/revalidation";
 
 /**
  * Owner-only update management: DELETE removes a progress update and
@@ -20,5 +21,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const { error } = await supabase.from("progress_updates").delete().eq("id", parsed.data);
   if (error) return NextResponse.json({ error: "Gagal menghapus update." }, { status: 400 });
 
+  revalidatePublicContent(parsed.data);
   return NextResponse.json({ ok: true });
 }

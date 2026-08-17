@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { revalidatePublicContent } from "@/lib/revalidation";
 
 const payload = z.object({ body: z.string().trim().min(2).max(1000) });
 
@@ -53,5 +54,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .single();
   if (error) return NextResponse.json({ error: "Gagal menyimpan balasan." }, { status: 500 });
 
+  revalidatePublicContent(parent.update_id);
   return NextResponse.json({ ok: true, comment: data }, { status: 201 });
 }

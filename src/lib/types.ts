@@ -71,6 +71,7 @@ export type ProgressUpdate = {
   media: string[];
   is_published: boolean;
   created_at: string;
+  updated_at?: string;
   app?: Pick<Project, "id" | "name" | "slug">;
   comment_count?: number;
   likes_count?: number;

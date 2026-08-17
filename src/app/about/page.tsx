@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import PulseDashboard from "@/components/pulse-dashboard";
 import { getPublicFeed } from "@/lib/feed";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 export const metadata: Metadata = { title: "About", description: "Tentang XySpace Blog dan cara kami membagikan proses pembangunan produk.", alternates: { canonical: "/about" } };
 
 export default async function AboutPage() {

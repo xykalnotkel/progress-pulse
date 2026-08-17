@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalLayout from "@/components/legal-layout";
 
 export const metadata: Metadata = {
-  title: "Kebijakan Privasi — XySpace Blog",
+  title: "Kebijakan Privasi",
   description: "Bagaimana XySpace Blog mengumpulkan, menggunakan, dan melindungi data Anda.",
   alternates: { canonical: "/privacy" },
 };

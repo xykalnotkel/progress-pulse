@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { consumeApiRateLimit, createVisitorHash } from "@/lib/abuse";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { revalidatePublicContent } from "@/lib/revalidation";
 import type { CommentReaction } from "@/lib/types";
 
 const payload = z.object({
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
   const { data: comment } = await supabase
     .from("comments")
-    .select("id")
+    .select("id, update_id")
     .eq("id", parsed.data.commentId)
     .eq("status", "approved")
     .maybeSingle();
@@ -61,5 +62,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Gagal menyimpan reaksi." }, { status: 500 });
   }
 
+  revalidatePublicContent(comment.update_id);
   return NextResponse.json({ ok: true }, { status: 201 });
 }

@@ -4,6 +4,7 @@ import { consumeApiRateLimit } from "@/lib/abuse";
 import { hasValidIngestToken } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { optimizeMediaList } from "@/lib/media";
+import { revalidatePublicContent } from "@/lib/revalidation";
 import { isConfiguredCloudinaryUrl, isSafeHttpsUrl } from "@/lib/url-validation";
 
 const httpsUrl = z.string().trim().refine(isSafeHttpsUrl, "URL HTTPS tidak valid.");
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
   if (input.action === "create_app") {
     const { data, error } = await supabase.from("apps").insert({ name: input.name, slug: input.slug, tagline: input.tagline ?? null, description: input.description ?? null, cover_url: input.coverUrl ?? null, links: input.links, is_published: input.isPublished }).select().single();
     if (error) return NextResponse.json({ error: error.code === "23505" ? "Slug aplikasi sudah dipakai." : "Gagal membuat aplikasi." }, { status: 400 });
+    revalidatePublicContent();
     return NextResponse.json({ ok: true, app: data }, { status: 201 });
   }
 
@@ -57,5 +59,6 @@ export async function POST(request: Request) {
   if (!app) return NextResponse.json({ error: "Aplikasi dengan appSlug tersebut tidak ditemukan." }, { status: 404 });
   const { data, error } = await supabase.from("progress_updates").insert({ app_id: app.id, title: input.title, description: input.description ?? null, status: input.status, version: input.version ?? null, media: optimizeMediaList(input.media), is_published: input.isPublished }).select().single();
   if (error) return NextResponse.json({ error: "Gagal membuat update." }, { status: 400 });
+  revalidatePublicContent(data.id);
   return NextResponse.json({ ok: true, update: data }, { status: 201 });
 }

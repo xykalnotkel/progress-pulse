@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { revalidatePublicContent } from "@/lib/revalidation";
 import { optimizeMediaList } from "@/lib/media";
 import { isConfiguredCloudinaryUrl } from "@/lib/url-validation";
 
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Gagal menyimpan update." }, { status: 400 });
   }
 
+  revalidatePublicContent(data.id);
   return NextResponse.json(data, { status: 201 });
 }
 

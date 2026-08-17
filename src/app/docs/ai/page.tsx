@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, BookOpen, KeyRound, Route, ShieldCheck, Terminal } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "AI Integration API — XySpace Blog",
+  title: "AI Integration API",
   description: "Dokumentasi lengkap API integrasi AI untuk XySpace Blog: endpoint, aksi, payload, dan contoh curl.",
   alternates: { canonical: "/docs/ai" },
 };

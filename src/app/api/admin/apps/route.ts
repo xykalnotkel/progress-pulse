@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { revalidatePublicContent } from "@/lib/revalidation";
 import { isConfiguredCloudinaryUrl, isSafeHttpsUrl } from "@/lib/url-validation";
 
 const httpsUrl = z.string().trim().refine(isSafeHttpsUrl, "URL HTTPS tidak valid.");
@@ -27,5 +28,6 @@ export async function POST(request: Request) {
   const input = parsed.data;
   const { data, error } = await supabase.from("apps").insert({ name: input.name, slug: input.slug, tagline: input.tagline ?? null, description: input.description ?? null, cover_url: input.coverUrl ?? null, links: input.links, is_published: input.isPublished }).select().single();
   if (error) return NextResponse.json({ error: error.code === "23505" ? "Slug aplikasi sudah dipakai." : "Gagal menyimpan aplikasi." }, { status: 400 });
+  revalidatePublicContent();
   return NextResponse.json(data, { status: 201 });
 }

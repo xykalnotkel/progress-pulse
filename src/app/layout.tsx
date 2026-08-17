@@ -32,5 +32,21 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#0A090E" }, { media: "(prefers-color-scheme: light)", color: "#F3F1F7" }], colorScheme: "dark light", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="id"><body>{children}</body></html>;
+  const websiteJsonLd = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "XySpace Blog",
+    url: siteUrl,
+    description: "Catatan progres aplikasi, eksperimen, dan produk yang sedang dibangun di XySpace.",
+    publisher: { "@type": "Organization", name: "XySpace" },
+  });
+
+  return (
+    <html lang="id">
+      <body>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: websiteJsonLd }} />
+        {children}
+      </body>
+    </html>
+  );
 }

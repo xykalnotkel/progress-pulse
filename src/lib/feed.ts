@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { demoApps, demoUpdates } from "@/lib/demo-data";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import type { Comment, CommentReaction, Contributor, ProgressUpdate, Project } from "@/lib/types";
@@ -14,7 +15,10 @@ function isDemoMode() {
   return process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !getFeedClient();
 }
 
-type UpdateWithStats = ProgressUpdate & { comments?: Comment[]; contributor_emails?: string[] };
+type UpdateWithStats = Omit<ProgressUpdate, "contributors"> & {
+  comments?: Comment[];
+  contributors?: string[];
+};
 
 const REACTIONS_LOCAL: CommentReaction[] = ["membantu", "setuju", "terima kasih"];
 
@@ -35,9 +39,12 @@ function nest(comments: Comment[], reactionsMap: Map<string, Partial<Record<Comm
   }));
 }
 
-async function attachStats(updates: UpdateWithStats[]) {
+async function attachStats(updates: UpdateWithStats[]): Promise<ProgressUpdate[]> {
   const supabase = getFeedClient();
-  if (!updates.length || !supabase) return updates;
+  if (!updates.length) return [];
+  if (!supabase) {
+    return updates.map((update) => ({ ...update, contributors: [] }));
+  }
 
   const ids = updates.map((update) => update.id);
 
@@ -72,7 +79,7 @@ async function attachStats(updates: UpdateWithStats[]) {
   // Resolve contributor emails via the profiles table. The DB column holds
   // emails; the wire type exposes resolved Contributor objects.
   const emails = new Set<string>();
-  for (const update of updates) for (const e of update.contributor_emails ?? []) emails.add(e);
+  for (const update of updates) for (const email of update.contributors ?? []) emails.add(email.toLowerCase());
   const profileIndex = new Map<string, Contributor>();
   if (emails.size) {
     const { data } = await supabase.from("profiles").select("email, display_name, avatar_url").in("email", [...emails]);
@@ -84,7 +91,7 @@ async function attachStats(updates: UpdateWithStats[]) {
 
   return updates.map((update) => {
     const threads = nest(commentsByUpdate.get(update.id) ?? [], reactionsMap);
-    const contributors = (update.contributor_emails ?? []).map((e) => {
+    const contributors = (update.contributors ?? []).map((e) => {
       const key = e.toLowerCase();
       return profileIndex.get(key) ?? { email: key, name: key.split("@")[0] || "Tim", avatar_url: null };
     });
@@ -93,13 +100,13 @@ async function attachStats(updates: UpdateWithStats[]) {
       media: optimizeMediaList(update.media),
       likes_count: likesMap.get(update.id) ?? 0,
       comments: threads,
-      comment_count: threads.length,
+      comment_count: threads.reduce((count, thread) => count + 1 + (thread.replies?.length ?? 0), 0),
       contributors,
     };
   });
 }
 
-export async function getPublicUpdateById(id: string) {
+export const getPublicUpdateById = cache(async function getPublicUpdateById(id: string) {
   const supabase = getFeedClient();
   if (isDemoMode()) {
     const update = demoUpdates.find((item) => item.id === id) ?? null;
@@ -116,7 +123,7 @@ export async function getPublicUpdateById(id: string) {
   if (!data) return null;
   const [enriched] = await attachStats([data as UpdateWithStats]);
   return enriched ?? null;
-}
+});
 
 export async function getPublicFeed() {
   const supabase = getFeedClient();
@@ -138,6 +145,28 @@ export async function getPublicFeed() {
     updates: enriched as ProgressUpdate[],
     isDemo: false,
   };
+}
+
+export async function getPublicSitemapUpdates() {
+  const supabase = getFeedClient();
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" || !supabase) {
+    return demoUpdates.map((update) => ({
+      id: update.id,
+      updated_at: update.created_at,
+    }));
+  }
+
+  const { data, error } = await supabase
+    .from("progress_updates")
+    .select("id, updated_at, created_at")
+    .eq("is_published", true)
+    .order("updated_at", { ascending: false })
+    .limit(1000);
+  if (error) throw new Error("Gagal memuat sitemap update.");
+  return (data ?? []).map((update) => ({
+    id: String(update.id),
+    updated_at: String(update.updated_at ?? update.created_at),
+  }));
 }
 
 export { REACTIONS_LOCAL as REACTIONS_FEED, REACTIONS };

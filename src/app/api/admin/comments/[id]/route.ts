@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { revalidatePublicContent } from "@/lib/revalidation";
 
 const payload = z.object({ status: z.enum(["approved", "rejected"]) });
 
@@ -20,11 +21,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const supabase = getSupabaseAdmin();
   if (!supabase) return NextResponse.json({ error: "Database belum dikonfigurasi." }, { status: 503 });
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("comments")
     .update({ status: parsed.data.status, moderated_at: new Date().toISOString(), moderated_by: identity.email })
-    .eq("id", id);
-  if (error) return NextResponse.json({ error: "Gagal memperbarui komentar." }, { status: 400 });
+    .eq("id", id)
+    .select("update_id")
+    .maybeSingle();
+  if (error || !data) return NextResponse.json({ error: "Gagal memperbarui komentar." }, { status: 400 });
 
+  revalidatePublicContent(data.update_id);
   return NextResponse.json({ ok: true });
 }

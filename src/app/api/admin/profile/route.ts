@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { revalidatePublicContent } from "@/lib/revalidation";
 import { isConfiguredCloudinaryUrl, isSafeHttpsUrl } from "@/lib/url-validation";
 
 const httpsUrl = z.string().trim().refine(isSafeHttpsUrl, "URL HTTPS tidak valid.");
@@ -53,5 +54,6 @@ export async function PUT(request: Request) {
   const { error } = await supabase.from("profiles").upsert(update, { onConflict: "email" });
   if (error) return NextResponse.json({ error: "Gagal menyimpan profil." }, { status: 500 });
 
+  revalidatePublicContent();
   return NextResponse.json({ ok: true });
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { consumeApiRateLimit } from "@/lib/abuse";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { requestHasAdminAccess } from "@/lib/request-auth";
+import { revalidatePublicContent } from "@/lib/revalidation";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 const payload = z.object({
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Gagal menyimpan komentar." }, { status: 500 });
   }
 
+  revalidatePublicContent(parsed.data.updateId);
   return NextResponse.json(
     { ok: true, identity: identity ? { badge: identity.badge, name: authorName } : null },
     { status: 201 },

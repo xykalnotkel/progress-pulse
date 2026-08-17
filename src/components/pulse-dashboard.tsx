@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -12,6 +13,7 @@ import {
   Heart,
   Layers3,
   MessageCircle,
+  Menu,
   Moon,
   Plus,
   Send,
@@ -23,9 +25,33 @@ import { REACTIONS, REACTION_LABELS } from "@/lib/constants";
 import type { AuthorBadge, Comment, CommentReaction, Contributor, ProgressUpdate, Project, UpdateStatus } from "@/lib/types";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { getVisitorId } from "@/lib/visitor-id";
-import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 
-const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+const HumanCheck = dynamic(() => import("@/components/human-check"), { ssr: false });
+
+function subscribeUrl(callback: () => void) {
+  window.addEventListener("popstate", callback);
+  return () => window.removeEventListener("popstate", callback);
+}
+function getUrlApp() {
+  return new URLSearchParams(window.location.search).get("app") ?? "all";
+}
+function subscribeTheme(callback: () => void) {
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  window.addEventListener("storage", callback);
+  media.addEventListener("change", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    media.removeEventListener("change", callback);
+  };
+}
+function getStoredTheme() {
+  try {
+    const stored = window.localStorage.getItem("pulse-theme");
+    return stored ? stored !== "light" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  } catch {
+    return true;
+  }
+}
 
 type View = "home" | "apps" | "updates" | "about";
 
@@ -209,12 +235,12 @@ function CommentReplyBox({ comment, updateId, isDemo, onReplyCreated, preselecte
   const [body, setBody] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const [turnstileVersion, setTurnstileVersion] = useState(0);
   const needsHumanCheck = !isDemo && !hideNameInput;
 
   function resetHumanCheck() {
     setTurnstileToken(null);
-    turnstileRef.current?.reset();
+    setTurnstileVersion((version) => version + 1);
   }
 
   async function submit(event: React.FormEvent) {
@@ -273,17 +299,9 @@ function CommentReplyBox({ comment, updateId, isDemo, onReplyCreated, preselecte
           <div className="reply-context">Membalas ke <strong>@{comment.author_name}</strong></div>
           {!hideNameInput && <input value={name} onChange={(event) => setName(event.target.value)} maxLength={48} placeholder="Nama kamu" required />}
           <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder={`Tulis balasan untuk @${comment.author_name.split(" ")[0]}...`} required />
-          {needsHumanCheck && turnstileSiteKey ? (
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={turnstileSiteKey}
-              options={{ action: "comment_reply", size: "invisible", execution: "render", language: "id" }}
-              onSuccess={setTurnstileToken}
-              onExpire={() => setTurnstileToken(null)}
-              onError={() => setTurnstileToken(null)}
-            />
+          {needsHumanCheck ? (
+            <HumanCheck key={turnstileVersion} action="comment_reply" onToken={setTurnstileToken} />
           ) : null}
-          {needsHumanCheck && !turnstileSiteKey ? <p className="comment-notice error">Proteksi anti-bot belum tersedia.</p> : null}
           {state === "error" && <p className="comment-notice error">Belum bisa mengirim balasan. Coba lagi.</p>}
           {state === "success" && !isDemo && <p className="comment-notice success"><Check size={15} /> Balasan terkirim.</p>}
           <div className="reply-actions">
@@ -375,7 +393,7 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
   const [body, setBody] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
-  const turnstileRef = useRef<TurnstileInstance | null>(null);
+  const [turnstileVersion, setTurnstileVersion] = useState(0);
   const needsHumanCheck = !isDemo && !isWriterAdmin;
   const [likedIds, setLikedIds] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -384,6 +402,7 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
   const [likeDelta, setLikeDelta] = useState<Record<string, number>>({});
 
   const serverComments = update.comments ?? [];
+  const serverCommentCount = update.comment_count ?? serverComments.length;
 
   function isLiked(id: string) { return likedIds.includes(id); }
   function likeCount(u: ProgressUpdate) { return (u.likes_count ?? 0) + (likeCountDelta[u.id] ?? 0); }
@@ -396,7 +415,7 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
 
   function resetHumanCheck() {
     setTurnstileToken(null);
-    turnstileRef.current?.reset();
+    setTurnstileVersion((version) => version + 1);
   }
 
   async function toggleLike() {
@@ -478,13 +497,13 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
           <button type="button" className={isLiked(update.id) ? "reaction reaction-liked" : "reaction"} onClick={toggleLike}>
             <Heart size={15} fill={isLiked(update.id) ? "currentColor" : "none"} /> {likeCount(update)} like{likeCount(update) === 1 ? "" : "s"}
           </button>
-          <a className="reaction" href={`#komentar-${update.id}`}><MessageCircle size={15} /> {serverComments.length + localComments.length} komentar</a>
+          <a className="reaction" href={`#komentar-${update.id}`}><MessageCircle size={15} /> {serverCommentCount + localComments.length} komentar</a>
           <Link className="read-link" href={`/updates/${update.id}`}>Buka halaman update <ArrowUpRight size={15} /></Link>
         </div>
 
         <div className="post-comments" id={`komentar-${update.id}`}>
           <div className="comments-heading">
-            <h3>Komentar <span>{serverComments.length + localComments.length}</span></h3>
+            <h3>Komentar <span>{serverCommentCount + localComments.length}</span></h3>
             <p>Keep it kind, useful, and on-topic. Komentar langsung tampil — tanpa persetujuan.</p>
           </div>
           {serverComments.map((comment) => (
@@ -528,17 +547,9 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
                 </div>
               )}
               <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={1000} placeholder="Tulis komentar yang bermanfaat..." required />
-              {needsHumanCheck && turnstileSiteKey ? (
-                <Turnstile
-                  ref={turnstileRef}
-                  siteKey={turnstileSiteKey}
-                  options={{ action: "comment", size: "invisible", execution: "render", language: "id" }}
-                  onSuccess={setTurnstileToken}
-                  onExpire={() => setTurnstileToken(null)}
-                  onError={() => setTurnstileToken(null)}
-                />
+              {needsHumanCheck ? (
+                <HumanCheck key={turnstileVersion} action="comment" onToken={setTurnstileToken} />
               ) : null}
-              {needsHumanCheck && !turnstileSiteKey ? <p className="comment-notice error">Proteksi anti-bot belum tersedia.</p> : null}
             </div>
             <button className="send-button" disabled={state === "sending" || (needsHumanCheck && !turnstileToken)} type="submit">{state === "sending" ? "Mengirim..." : <><Send size={15} /> Kirim</>}</button>
           </form>
@@ -549,18 +560,21 @@ function UpdatePost({ update, isDemo, sessionToken, writerIdentity, isWriterAdmi
 }
 
 export default function PulseDashboard({ apps, updates, isDemo = false, view = "home" }: Props) {
-  const [activeApp, setActiveApp] = useState(() => {
-    if (typeof window === "undefined") return "all";
-    return new URLSearchParams(window.location.search).get("app") ?? "all";
-  });
-  const [dark, setDark] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.localStorage.getItem("pulse-theme") !== "light";
-  });
+  const urlActiveApp = useSyncExternalStore(subscribeUrl, getUrlApp, () => "all");
+  const storedDark = useSyncExternalStore(subscribeTheme, getStoredTheme, () => true);
+  const [activeAppOverride, setActiveApp] = useState<string | null>(null);
+  const activeApp = activeAppOverride ?? urlActiveApp;
+  const [darkOverride, setDarkOverride] = useState<boolean | null>(null);
+  const dark = darkOverride ?? storedDark;
+  const [navOpen, setNavOpen] = useState(false);
   const [writer, setWriter] = useState<WriterIdentity | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
 
-  useEffect(() => window.localStorage.setItem("pulse-theme", dark ? "dark" : "light"), [dark]);
+  function toggleTheme() {
+    const next = !dark;
+    setDarkOverride(next);
+    try { window.localStorage.setItem("pulse-theme", next ? "dark" : "light"); } catch { /* noop */ }
+  }
 
   useEffect(() => {
     if (isDemo) return;
@@ -601,10 +615,18 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
           <Image className="brand-logo" src="/images/xyspace-logo.webp" alt="XySpace" width={44} height={44} priority />
           <span>XySpace <span className="brand-blog">Blog</span></span>
         </Link>
-        <div className="nav-links"><Link href="/">Home</Link><Link href="/updates">Updates</Link><Link href="/apps">Apps</Link><Link href="/about">About</Link></div>
+        <div className={`nav-links ${navOpen ? "nav-links-open" : ""}`}>
+          <Link href="/" onClick={() => setNavOpen(false)}>Home</Link>
+          <Link href="/updates" onClick={() => setNavOpen(false)}>Updates</Link>
+          <Link href="/apps" onClick={() => setNavOpen(false)}>Apps</Link>
+          <Link href="/about" onClick={() => setNavOpen(false)}>About</Link>
+        </div>
         <div className="nav-actions">
-          <button className="theme-toggle" type="button" onClick={() => setDark((value) => !value)} aria-label="Toggle theme">
+          <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label="Ganti tema" aria-pressed={!dark}>
             <Sun size={15} /><span className={dark ? "toggle-knob" : "toggle-knob toggle-knob-light"}><Moon size={13} /></span>
+          </button>
+          <button className="mobile-menu-toggle" type="button" onClick={() => setNavOpen((value) => !value)} aria-label="Buka navigasi" aria-expanded={navOpen}>
+            {navOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
       </nav>
@@ -670,7 +692,7 @@ export default function PulseDashboard({ apps, updates, isDemo = false, view = "
         {filteredUpdates.length === 0 && <div className="empty-feed">Nothing in this lane just yet.</div>}
       </section>}
 
-      {view === "about" && <section className="closing" id="about"><div className="closing-orb" /><p className="eyebrow">STAY IN THE LOOP</p><h2>More soon.<br /><em>Always building.</em></h2><p>Follow the work as it takes shape, one release at a time.</p><a className="button button-primary" href="mailto:hello@example.com">Get in touch <ArrowUpRight size={16} /></a></section>}
+      {view === "about" && <section className="closing" id="about"><div className="closing-orb" /><p className="eyebrow">STAY IN THE LOOP</p><h2>More soon.<br /><em>Always building.</em></h2><p>Follow the work as it takes shape, one release at a time.</p><a className="button button-primary" href="https://github.com/xykalnotkel" target="_blank" rel="noreferrer">Open GitHub <ArrowUpRight size={16} /></a></section>}
 
       <footer className="site-footer">
         <div className="footer-grid">

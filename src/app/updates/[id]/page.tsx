@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Heart, MessageCircle } from "lucide-react";
@@ -7,7 +8,7 @@ import type { Comment, Contributor } from "@/lib/types";
 import { notFound } from "next/navigation";
 import ShareLinks from "@/components/share-links/ShareLinks";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,54 @@ function relativeText(value: string) {
 
 function imageMedia(url?: string) {
   return Boolean(url && !/\.(mp4|webm|mov)(\?.*)?$/i.test(url));
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const update = await getPublicUpdateById(id);
+  if (!update) {
+    return {
+      title: "Update tidak ditemukan",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const siteUrl = getSiteUrl();
+  const canonical = `${siteUrl}/updates/${update.id}`;
+  const description = (update.description || `Update terbaru dari ${update.app?.name ?? "XySpace"}.`)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+  const firstMedia = update.media?.[0];
+  const ogImage = imageMedia(firstMedia)
+    ? firstMedia!
+    : (() => {
+        const image = new URL("/opengraph-image", siteUrl);
+        image.searchParams.set("title", update.title);
+        image.searchParams.set("app", update.app?.name ?? "XySpace Blog");
+        return image.toString();
+      })();
+
+  return {
+    title: update.title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "article",
+      url: canonical,
+      title: update.title,
+      description,
+      publishedTime: update.created_at,
+      authors: ["XySpace"],
+      images: [{ url: ogImage, alt: `Preview ${update.title}` }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: update.title,
+      description,
+      images: [ogImage],
+    },
+  };
 }
 
 function CommentBadge({ badge }: { badge?: string | null }) {
@@ -73,9 +122,22 @@ export default async function UpdateDetailPage({ params }: PageProps) {
   const likeCount = update.likes_count ?? 0;
   const shareUrl = `${siteUrl}/updates/${update.id}`;
   const mediaAlt = `Preview ${update.title}`;
+  const articleJsonLd = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: update.title,
+    description: update.description ?? undefined,
+    datePublished: update.created_at,
+    dateModified: update.updated_at ?? update.created_at,
+    mainEntityOfPage: shareUrl,
+    author: { "@type": "Organization", name: "XySpace" },
+    publisher: { "@type": "Organization", name: "XySpace" },
+    image: hasImage && media ? [media] : undefined,
+  }).replace(/</g, "\\u003c");
 
   return (
     <main className="detail-page">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: articleJsonLd }} />
       <div className="detail-ambient detail-ambient-one" />
       <div className="detail-ambient detail-ambient-two" />
       <nav className="detail-nav">

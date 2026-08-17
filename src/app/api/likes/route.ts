@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { consumeApiRateLimit, createVisitorHash } from "@/lib/abuse";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { revalidatePublicContent } from "@/lib/revalidation";
 
 const payload = z.object({
   updateId: z.string().uuid(),
@@ -58,5 +59,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Gagal menyimpan like." }, { status: 500 });
   }
 
+  revalidatePublicContent(parsed.data.updateId);
   return NextResponse.json({ ok: true }, { status: 201 });
 }

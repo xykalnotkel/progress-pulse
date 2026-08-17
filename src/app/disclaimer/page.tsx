@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalLayout from "@/components/legal-layout";
 
 export const metadata: Metadata = {
-  title: "Disclaimer — XySpace Blog",
+  title: "Disclaimer",
   description: "Penjelasan batasan tanggung jawab konten di XySpace Blog.",
   alternates: { canonical: "/disclaimer" },
 };

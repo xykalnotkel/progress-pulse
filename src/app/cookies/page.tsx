@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import LegalLayout from "@/components/legal-layout";
 
 export const metadata: Metadata = {
-  title: "Kebijakan Cookie — XySpace Blog",
+  title: "Kebijakan Cookie",
   description: "Cookie dan penyimpanan lokal yang digunakan oleh XySpace Blog.",
   alternates: { canonical: "/cookies" },
 };
