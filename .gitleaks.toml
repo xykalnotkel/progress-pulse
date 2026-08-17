@@ -1,0 +1,17 @@
+# Gitleaks configuration for progress-pulse.
+#
+# The flagged items are documentation placeholders: the AI integration docs
+# and README show `Authorization: Bearer YOUR_AI_INGEST_TOKEN` curl examples.
+# These are example tokens, never real credentials, so the paths are
+# allowlisted. Everything else is scanned with the default rules.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation examples with placeholder credentials"
+paths = [
+  '''src/app/docs/.*''',
+  '''README\.md''',
+  '''\.env\.example''',
+]
